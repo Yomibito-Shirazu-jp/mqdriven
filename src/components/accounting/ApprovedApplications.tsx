@@ -430,56 +430,46 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap justify-between items-start gap-4">
+    <div>
+      <div className="flex flex-wrap justify-between items-end gap-4 px-5 pt-6 pb-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            <FileCheck className="w-6 h-6 text-indigo-600" />
-            {title}
-          </h2>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{description}</p>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">{title}</h2>
+          <p className="text-slate-400 dark:text-slate-500 text-[13px] mt-0.5">{description}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              placeholder="検索"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 pr-3 py-1.5 w-56 bg-transparent border-b border-slate-200 dark:border-slate-700 text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-teal-500"
+            />
+          </div>
           {bulkAiRunning && (
-            <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-              <Loader className="w-4 h-4 animate-spin" />
-              <span>AI提案中 {bulkAiProgress.done}/{bulkAiProgress.total}</span>
-              {bulkAiProgress.errors > 0 && <span className="text-red-500">({bulkAiProgress.errors}件失敗)</span>}
-            </div>
+            <span className="text-[13px] text-slate-500">
+              <Loader className="w-3.5 h-3.5 animate-spin inline mr-1" />
+              AI提案中 {bulkAiProgress.done}/{bulkAiProgress.total}
+              {bulkAiProgress.errors > 0 && <span className="text-red-500 ml-1">({bulkAiProgress.errors}失敗)</span>}
+            </span>
           )}
           <button
             type="button"
             onClick={handleBulkAiGenerate}
             disabled={bulkAiRunning || isLoading}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50 whitespace-nowrap"
+            className="text-[13px] text-teal-700 dark:text-teal-400 hover:underline disabled:opacity-50 whitespace-nowrap"
           >
-            {bulkAiRunning ? <Loader className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             全件AI仕訳提案
           </button>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-        <div className="relative w-full md:w-96">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500" />
-          <input
-            type="text"
-            placeholder="件名・申請者で検索"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 pr-4 py-2 w-full bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
-          />
-        </div>
-      </div>
-
       {error && (
-        <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-800 dark:text-red-200 rounded-xl p-4 text-sm whitespace-pre-wrap">
-          {error}
-        </div>
+        <div className="mx-5 mb-4 text-sm text-red-600 dark:text-red-400">{error}</div>
       )}
 
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="overflow-x-auto">
+      <div className="overflow-x-auto">
           {isLoading ? (
             <div className="p-16 text-center text-slate-600 dark:text-slate-300">
               <Loader className="w-8 h-8 animate-spin mx-auto text-indigo-600" />
@@ -599,7 +589,6 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
             </table>
           )}
         </div>
-      </div>
 
       {selectedApplication && (
         <div
