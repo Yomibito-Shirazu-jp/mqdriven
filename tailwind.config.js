@@ -35,7 +35,27 @@ export default {
       },
       fontSize: {
         'xxs': '0.65rem',
-      }
+      },
+      keyframes: {
+        'fade-out-right': {
+          '0%': { opacity: '1', transform: 'translateX(0)' },
+          '100%': { opacity: '0', transform: 'translateX(40px)' },
+        },
+        'check-pop': {
+          '0%': { transform: 'scale(0)', opacity: '0' },
+          '50%': { transform: 'scale(1.2)' },
+          '100%': { transform: 'scale(1)', opacity: '1' },
+        },
+        'count-pulse': {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.15)', color: '#16a34a' },
+        },
+      },
+      animation: {
+        'fade-out-right': 'fade-out-right 500ms ease-in-out forwards',
+        'check-pop': 'check-pop 400ms ease-out forwards',
+        'count-pulse': 'count-pulse 600ms ease-in-out',
+      },
     },
   },
   plugins: [],
