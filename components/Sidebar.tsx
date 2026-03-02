@@ -118,27 +118,51 @@ const BASE_NAV_CATEGORIES: NavCategoryType[] = [
   },
 ];
 
+const ACCOUNTING_BADGE_MAP: Record<string, keyof AccountingBadgeCounts> = {
+  accounting_journal_review: 'journalReview',
+  accounting_approved_applications: 'approvedApplications',
+  accounting_payables: 'payables',
+  accounting_receivables: 'receivables',
+};
+
 const decorateCategories = (
   categories: NavCategoryType[],
-  pendingApprovalCount?: number
+  pendingApprovalCount?: number,
+  accountingCounts?: AccountingBadgeCounts,
 ): NavCategoryType[] =>
   categories.map(category => {
-    if (category.id !== 'sales') return category;
-    return {
-      ...category,
-      items: category.items.map(item =>
-        item.page === 'approval_list'
-          ? { ...item, badge: pendingApprovalCount, badgeColor: 'blue' }
-          : item
-      ),
-    };
+    if (category.id === 'approval') {
+      return {
+        ...category,
+        items: category.items.map(item =>
+          item.page === 'approval_list'
+            ? { ...item, badge: pendingApprovalCount, badgeColor: 'blue' as const }
+            : item
+        ),
+      };
+    }
+    if (category.id === 'accounting' && accountingCounts) {
+      return {
+        ...category,
+        items: category.items.map(item => {
+          const countKey = ACCOUNTING_BADGE_MAP[item.page];
+          if (!countKey) return item;
+          const count = accountingCounts[countKey];
+          return count && count > 0
+            ? { ...item, badge: count, badgeColor: 'blue' as const }
+            : item;
+        }),
+      };
+    }
+    return category;
   });
 
 export const buildNavCategories = (
   user: EmployeeUser | null,
-  pendingApprovalCount?: number
+  pendingApprovalCount?: number,
+  accountingCounts?: AccountingBadgeCounts,
 ): NavCategoryType[] => {
-  const baseCategories = decorateCategories(BASE_NAV_CATEGORIES, pendingApprovalCount);
+  const baseCategories = decorateCategories(BASE_NAV_CATEGORIES, pendingApprovalCount, accountingCounts);
 
   const isAdmin = user?.role === 'admin';
 
@@ -151,8 +175,16 @@ export const buildNavCategories = (
     .filter(category => category.items.length > 0);
 };
 
+export interface AccountingBadgeCounts {
+  journalReview?: number;
+  approvedApplications?: number;
+  payables?: number;
+  receivables?: number;
+}
+
 interface SidebarWithCountsProps extends SidebarProps {
   approvalsCount?: number;
+  accountingCounts?: AccountingBadgeCounts;
 }
 
 const Sidebar: React.FC<SidebarWithCountsProps> = ({
@@ -162,6 +194,7 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
   supabaseUserEmail,
   onSignOut,
   approvalsCount,
+  accountingCounts,
 }) => {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
@@ -181,8 +214,8 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
     setExpandedCategories(prev => ({ ...prev, [categoryId]: !(prev[categoryId] ?? false) }));
   };
   const visibleCategories = React.useMemo(
-    () => buildNavCategories(currentUser, approvalsCount),
-    [currentUser, approvalsCount]
+    () => buildNavCategories(currentUser, approvalsCount, accountingCounts),
+    [currentUser, approvalsCount, accountingCounts]
   );
 
   // Mobile: full width when open, Desktop: toggleable

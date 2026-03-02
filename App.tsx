@@ -81,7 +81,8 @@ import * as geminiService from './services/geminiService';
 import { getSupabase, getSupabaseFunctionHeaders, hasSupabaseCredentials } from './services/supabaseClient';
 import type { Session, User as SupabaseAuthUser } from '@supabase/supabase-js';
 
-import { Page, Job, JobCreationPayload, Customer, JournalEntry, User, AccountItem, Lead, ApprovalRoute, PurchaseOrder, InventoryItem, Employee, Toast, ConfirmationDialogProps, BugReport, Estimate, ApplicationWithDetails, Invoice, EmployeeUser, Department, PaymentRecipient, MasterAccountItem, AllocationDivision, Title, ProjectBudgetSummary, DailyReportPrefill, Project, CompanyAnalysis } from './types';
+import { Page, Job, JobCreationPayload, Customer, JournalEntry, User, AccountItem, Lead, ApprovalRoute, PurchaseOrder, InventoryItem, Employee, Toast, ConfirmationDialogProps, BugReport, Estimate, ApplicationWithDetails, Invoice, EmployeeUser, Department, PaymentRecipient, MasterAccountItem, AllocationDivision, Title, ProjectBudgetSummary, DailyReportPrefill, Project, CompanyAnalysis, AccountingStatus } from './types';
+import type { AccountingBadgeCounts } from './components/Sidebar';
 import { PlusCircle, Loader, AlertTriangle, RefreshCw, Settings, Menu } from './components/Icons';
 import { IS_AI_DISABLED as ENV_SHIM_AI_OFF } from './src/envShim';
 
@@ -1036,6 +1037,23 @@ const App: React.FC = () => {
         return applications.filter(app => app.approverId === currentUser.id && app.status === 'pending_approval').length;
     }, [currentUser, applications]);
 
+    const accountingCounts = useMemo<AccountingBadgeCounts>(() => {
+        if (!applications) return {};
+        const approved = applications.filter(app => app.status === 'approved');
+        const journalReview = approved.filter(app => {
+            const st = app.accounting_status ?? app.accountingStatus;
+            return !st || st === AccountingStatus.NONE || st === AccountingStatus.DRAFT;
+        }).length;
+        const approvedApplications = approved.filter(app => {
+            const st = app.accounting_status ?? app.accountingStatus;
+            return st !== AccountingStatus.POSTED;
+        }).length;
+        return {
+            journalReview: journalReview || undefined,
+            approvedApplications: approvedApplications || undefined,
+        };
+    }, [applications]);
+
     // Data Handlers
     const handleAddJob = async (jobData: JobCreationPayload) => {
         await dataService.addJob(jobData);
@@ -1631,6 +1649,7 @@ const App: React.FC = () => {
                 supabaseUserEmail={user?.email}
                 onSignOut={handleSignOut}
                 approvalsCount={pendingApprovalCount}
+                accountingCounts={accountingCounts}
             />
             <main className="flex-1 flex flex-col overflow-hidden bg-slate-100 dark:bg-slate-900 relative min-h-0">
                 {dbError && <GlobalErrorBanner error={dbError} onRetry={loadAllData} onShowSetup={() => setIsSetupModalOpen(true)} />}
