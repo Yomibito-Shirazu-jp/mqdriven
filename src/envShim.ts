@@ -49,7 +49,7 @@ const logEnvDebug = () => {
   });
 };
 
-logEnvDebug();
+if (import.meta.env.DEV) logEnvDebug();
 
 // Get API key from environment
 const getApiKey = (): string => {
@@ -126,15 +126,16 @@ export const IS_AI_DISABLED = (() => {
   return false;
 })();
 
-console.log('=== AI Configuration ===');
-console.log('API Key:', GEMINI_API_KEY ? `✓ SET (${GEMINI_API_KEY.length} chars)` : '✗ NOT SET');
-console.log('AI Disabled:', IS_AI_DISABLED);
-console.log('=======================');
+if (import.meta.env.DEV) {
+  console.log('=== AI Configuration ===');
+  console.log('API Key:', GEMINI_API_KEY ? `✓ SET (${GEMINI_API_KEY.length} chars)` : '✗ NOT SET');
+  console.log('AI Disabled:', IS_AI_DISABLED);
+  console.log('=======================');
 
-// Development warning
-if (!GEMINI_API_KEY && !IS_AI_DISABLED) {
-  console.error('❌ API Key not found. Please set one of the following environment variables:');
-  console.error('- VITE_GEMINI_API_KEY');
-  console.error('- VITE_API_KEY');
-  console.error('Or set NEXT_PUBLIC_AI_OFF=1 to disable AI features.');
+  if (!GEMINI_API_KEY && !IS_AI_DISABLED) {
+    console.error('❌ API Key not found. Please set one of the following environment variables:');
+    console.error('- VITE_GEMINI_API_KEY');
+    console.error('- VITE_API_KEY');
+    console.error('Or set NEXT_PUBLIC_AI_OFF=1 to disable AI features.');
+  }
 }
