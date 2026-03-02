@@ -486,14 +486,16 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
             </div>
           ) : (
             <table className="w-full text-left text-base text-slate-600 dark:text-slate-200">
-              <thead className="bg-slate-50 dark:bg-slate-900/30 text-sm uppercase font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
+              <thead className="bg-slate-50 dark:bg-slate-900/30 text-sm font-semibold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
                 <tr>
-                  <th className="px-4 py-3 whitespace-nowrap w-24">種別</th>
-                  <th className="px-4 py-3">件名</th>
-                  <th className="px-4 py-3 hidden md:table-cell whitespace-nowrap w-20">申請者</th>
-                  <th className="px-4 py-3 text-right whitespace-nowrap w-28">金額</th>
-                  <th className="px-4 py-3 hidden lg:table-cell whitespace-nowrap w-36">承認日時</th>
-                  <th className="px-4 py-3 whitespace-nowrap w-48">会計ステータス</th>
+                  <th className="px-3 py-3 whitespace-nowrap">種別</th>
+                  <th className="px-3 py-3">件名</th>
+                  <th className="px-3 py-3 text-right whitespace-nowrap">金額</th>
+                  <th className="px-3 py-3 whitespace-nowrap">日時</th>
+                  <th className="px-3 py-3 whitespace-nowrap">仕訳</th>
+                  <th className="px-3 py-3 whitespace-nowrap text-center">提案</th>
+                  <th className="px-3 py-3 whitespace-nowrap text-center">修正</th>
+                  <th className="px-3 py-3 whitespace-nowrap text-center">確定</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
@@ -501,58 +503,128 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                   const amount = deriveAmount(app);
                   const status = app.accountingStatus ?? app.accounting_status ?? 'none';
                   const amountText = formatCurrency(amount);
+                  const hasJournal = (app.journalEntry?.lines || []).length > 0;
+                  const isPosted = status === 'posted';
+                  const isDraft = status === 'draft';
+                  const journalSummary = hasJournal ? (() => {
+                    const dl = app.journalEntry!.lines!.find((l: any) => (l.debit_amount ?? 0) > 0);
+                    const cl = app.journalEntry!.lines!.find((l: any) => (l.credit_amount ?? 0) > 0);
+                    return `${dl?.account_name || '?'} → ${cl?.account_name || '?'}`;
+                  })() : null;
+                  const isConfirming = confirmingAppId === app.id;
+                  const isInlineWorking = inlineWorkingId === app.id;
                   return (
                     <tr
                       key={app.id}
-                      onClick={() => setSelectedApplicationId(app.id)}
-                      className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40 cursor-pointer"
+                      className="hover:bg-slate-50/50 dark:hover:bg-slate-900/40"
                     >
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center whitespace-nowrap px-2.5 py-1 rounded-full text-sm font-medium bg-indigo-50 text-indigo-800 border border-indigo-100 dark:bg-indigo-500/20 dark:text-indigo-200 dark:border-indigo-400/40">
+                      <td className="px-3 py-3">
+                        <span className="inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-full text-sm font-medium bg-indigo-50 text-indigo-800 border border-indigo-100 dark:bg-indigo-500/20 dark:text-indigo-200 dark:border-indigo-400/40">
                           {app.application_code?.name || 'N/A'}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
-                        <div className="font-bold text-slate-800 dark:text-slate-100 truncate max-w-xs">
+                      <td className="px-3 py-3">
+                        <div className="font-semibold text-slate-800 dark:text-slate-100 truncate max-w-sm">
                           {buildTitle(app)}
                         </div>
-                        <div className="text-sm text-slate-500 dark:text-slate-400 mt-0.5 truncate max-w-xs">
-                          {buildTitle(app) === (app.formData?.invoice?.supplierName || '') ? '' : app.formData?.invoice?.supplierName || ''}
+                        <div className="text-sm text-slate-500 dark:text-slate-400 truncate max-w-sm">
+                          {app.applicant?.name}{buildTitle(app) !== (app.formData?.invoice?.supplierName || '') && app.formData?.invoice?.supplierName ? ` / ${app.formData.invoice.supplierName}` : ''}
                         </div>
                       </td>
-                      <td className="px-4 py-3 hidden md:table-cell whitespace-nowrap">
-                        <div className="text-slate-700 dark:text-slate-200">{app.applicant?.name}</div>
+                      <td className="px-3 py-3 text-right font-mono font-semibold text-emerald-700 dark:text-emerald-300 whitespace-nowrap">
+                        {amountText || '-'}
                       </td>
-                      <td className="px-4 py-3 text-right font-mono font-semibold text-emerald-700 dark:text-emerald-300 whitespace-nowrap">
-                        {amountText ? amountText : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm font-mono text-slate-500 dark:text-slate-400 hidden lg:table-cell whitespace-nowrap">
+                      <td className="px-3 py-3 text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">
                         {formatDate(app.approvedAt)}
                       </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-flex items-center whitespace-nowrap px-2.5 py-1 rounded-full text-sm font-semibold border ${getAccountingStatusBadgeClass(
-                            status
-                          )}`}
-                        >
-                          {getAccountingStatusLabel(status)}
-                        </span>
-                        {app.journalEntry?.lines && app.journalEntry.lines.length > 0 && (
-                          <div className="text-sm text-slate-500 dark:text-slate-400 mt-1 truncate max-w-[12rem]">
-                            {(() => {
-                              const dl = app.journalEntry!.lines!.find((l: any) => (l.debit_amount ?? 0) > 0);
-                              const cl = app.journalEntry!.lines!.find((l: any) => (l.credit_amount ?? 0) > 0);
-                              return `${dl?.account_name || '?'} → ${cl?.account_name || '?'}`;
-                            })()}
+                      <td className="px-3 py-3">
+                        {hasJournal ? (
+                          <div>
+                            <span className={`inline-flex items-center whitespace-nowrap px-2 py-0.5 rounded-full text-xs font-semibold border ${getAccountingStatusBadgeClass(status)}`}>
+                              {getAccountingStatusLabel(status)}
+                            </span>
+                            <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate max-w-[10rem]">
+                              {journalSummary}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-slate-400">未生成</span>
+                        )}
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        {!hasJournal && !isPosted && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setSelectedApplicationId(app.id); }}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-violet-50 text-violet-700 border border-violet-200 text-xs font-semibold hover:bg-violet-100 dark:bg-violet-500/20 dark:text-violet-200 dark:border-violet-400/40 dark:hover:bg-violet-500/30"
+                            title="AI仕訳提案を開く"
+                          >
+                            <Sparkles className="w-3.5 h-3.5" />
+                            提案
+                          </button>
+                        )}
+                        {hasJournal && !isPosted && (
+                          <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">済</span>
+                        )}
+                        {isPosted && <span className="text-xs text-slate-400">-</span>}
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        {hasJournal && !isPosted && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setSelectedApplicationId(app.id); }}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 text-slate-700 border border-slate-200 text-xs font-semibold hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-slate-600"
+                            title="仕訳を修正"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                            修正
+                          </button>
+                        )}
+                        {!hasJournal && <span className="text-xs text-slate-400">-</span>}
+                        {isPosted && <span className="text-xs text-slate-400">-</span>}
+                      </td>
+                      <td className="px-3 py-3 text-center">
+                        {isDraft && hasJournal && !isConfirming && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setConfirmingAppId(app.id); }}
+                            disabled={isInlineWorking}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-semibold hover:bg-emerald-100 dark:bg-emerald-500/20 dark:text-emerald-200 dark:border-emerald-400/40 dark:hover:bg-emerald-500/30"
+                            title="仕訳を確定"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                            確定
+                          </button>
+                        )}
+                        {isDraft && hasJournal && isConfirming && (
+                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={() => handleInlineConfirm(app)}
+                              disabled={isInlineWorking}
+                              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50"
+                            >
+                              {isInlineWorking ? <Loader className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                              実行
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setConfirmingAppId(null)}
+                              className="px-2 py-1 rounded-md text-xs text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700"
+                            >
+                              取消
+                            </button>
                           </div>
                         )}
+                        {isPosted && <span className="inline-flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-semibold"><Check className="w-3.5 h-3.5" />確定済</span>}
+                        {!isDraft && !isPosted && <span className="text-xs text-slate-400">-</span>}
                       </td>
                     </tr>
                   );
                 })}
                 {filteredApps.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500">
+                    <td colSpan={8} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500">
                       該当する承認済み申請がありません。
                     </td>
                   </tr>
