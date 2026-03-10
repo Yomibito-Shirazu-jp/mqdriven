@@ -6,7 +6,9 @@
       "Bash(curl -s \"https://rwjhpfghhgstvplmggks.supabase.co/auth/v1/authorize?provider=google\" -D -)",
       "Bash(curl -s \"https://erp.b-p.co.jp/\")",
       "Bash(curl -s \"https://mqdriven.vercel.app/\")",
-      "Bash(npx vercel domains ls)"
+      "Bash(npx vercel domains ls)",
+      "Bash(python3 -c \":*)",
+      "Bash(npx tsc --noEmit --skipLibCheck)"
     ]
   }
 }

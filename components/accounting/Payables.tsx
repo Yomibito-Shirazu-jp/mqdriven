@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { CreditCard, Truck, AlertCircle, CheckCircle, FileText, Download, Calendar, ArrowRight, Zap, Filter, ListFilter, Loader, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CreditCard, Truck, AlertCircle, CheckCircle2, FileText, Download, Calendar, ArrowRight, Zap, Filter, ListFilter, Loader, ChevronLeft, ChevronRight, Clock, TrendingUp, RefreshCw } from 'lucide-react';
 import { PayableItem } from '../../types';
 import * as dataService from '../../services/dataService';
 
 const STATUS_MAP = {
     outstanding: { text: '支払待ち', color: 'bg-amber-100 text-amber-800', icon: <AlertCircle className="w-3 h-3" /> },
     partially_paid: { text: '一部支払済', color: 'bg-blue-100 text-blue-800', icon: <CreditCard className="w-3 h-3" /> },
-    paid: { text: '支払済', color: 'bg-emerald-100 text-emerald-800', icon: <CheckCircle className="w-3 h-3" /> },
+    paid: { text: '支払済', color: 'bg-emerald-100 text-emerald-800', icon: <CheckCircle2 className="w-3 h-3" /> },
 };
 
 const PayablesPage: React.FC = () => {
@@ -19,6 +19,7 @@ const PayablesPage: React.FC = () => {
     const today = new Date();
     return `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}`;
   });
+  const [isAggregated, setIsAggregated] = useState(false);
 
   const shiftMonth = (delta: number) => {
     const [y, m] = period.split('-').map(Number);
@@ -53,6 +54,21 @@ const PayablesPage: React.FC = () => {
     loadPayables();
   }, [loadPayables]);
 
+  const handleGenerateFixedCosts = async () => {
+    if (!window.confirm(`${period}分の規定の固定費（家賃・リース料等）を一括計上しますか？`)) return;
+    
+    setIsLoading(true);
+    try {
+        const count = await dataService.generateMonthlyFixedCostPayables(period);
+        alert(`${count}件の固定費データを計上しました。`);
+        await loadPayables();
+    } catch (err: any) {
+        alert(err.message || '固定費の計上に失敗しました。');
+    } finally {
+        setIsLoading(false);
+    }
+  };
+
   const today = new Date().toISOString().split('T')[0];
 
   const summary = payables.reduce((acc, p) => {
@@ -63,12 +79,31 @@ const PayablesPage: React.FC = () => {
     return acc;
   }, { totalAmount: 0, totalPaid: 0, totalUnpaid: 0, overdueCount: 0 });
 
+  const displayPayables = React.useMemo(() => {
+    if (!isAggregated) return payables;
+    const groups: Record<string, PayableItem & { count: number }> = {};
+    payables.forEach(p => {
+      if (!groups[p.supplier]) {
+        groups[p.supplier] = { ...p, count: 1 };
+      } else {
+        groups[p.supplier].amount += p.amount;
+        groups[p.supplier].paidAmount += p.paidAmount;
+        groups[p.supplier].count++;
+        // Use the latest due date for the group
+        if (p.due && (!groups[p.supplier].due || p.due > groups[p.supplier].due)) {
+            groups[p.supplier].due = p.due;
+        }
+      }
+    });
+    return Object.values(groups);
+  }, [payables, isAggregated]);
+
   return (
     <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
       {/* Header */}
       <div className="p-4 border-b border-slate-200 bg-slate-50/50">
         <div className="flex justify-between items-center">
-            <h2 className="font-bold text-lg text-slate-800">買掛金管理</h2>
+            <h2 className="font-bold text-lg text-slate-800">買掛管理</h2>
             <div className="flex items-center gap-2">
                 <button className="px-3 py-1.5 bg-indigo-600 text-white rounded text-sm font-medium hover:bg-indigo-700 flex items-center gap-2">
                     <Zap className="w-4 h-4" />支払実行
@@ -89,13 +124,34 @@ const PayablesPage: React.FC = () => {
                     <option value="paid">支払済</option>
                 </select>
             </div>
-            <div className="flex items-center gap-1">
-                <button onClick={() => shiftMonth(-1)} className="p-1.5 rounded hover:bg-slate-200 transition"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
-                <div className="relative">
-                    <input type="month" value={period} onChange={e => setPeriod(e.target.value)} className="pl-8 pr-3 py-1 bg-white border border-slate-300 rounded text-sm text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-40" />
-                    <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <div className="flex items-center gap-2 h-7 px-2 border border-slate-300 rounded bg-white">
+                <input
+                    type="checkbox"
+                    id="aggregate-toggle"
+                    checked={isAggregated}
+                    onChange={e => setIsAggregated(e.target.checked)}
+                    className="w-3.5 h-3.5 text-indigo-600"
+                />
+                <label htmlFor="aggregate-toggle" className="text-sm text-slate-600 cursor-pointer whitespace-nowrap select-none">仕入先ごとに集計（支払一覧）</label>
+            </div>
+            <div className="flex-1"></div>
+            <div className="flex items-center gap-2">
+                <button 
+                    onClick={handleGenerateFixedCosts}
+                    className="flex items-center gap-1 px-3 py-1 bg-indigo-600 text-white rounded text-xs font-bold hover:bg-indigo-700 transition"
+                    title="固定費マスタから今月の支払データを生成します"
+                >
+                    <Zap className="w-3 h-3" />
+                    固定費計上
+                </button>
+                <div className="flex items-center gap-1">
+                    <button onClick={() => shiftMonth(-1)} className="p-1.5 rounded hover:bg-slate-200 transition"><ChevronLeft className="w-4 h-4 text-slate-500" /></button>
+                    <div className="relative">
+                        <input type="month" value={period} onChange={e => setPeriod(e.target.value)} className="pl-8 pr-3 py-1 bg-white border border-slate-300 rounded text-sm text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-40" />
+                        <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    </div>
+                    <button onClick={() => shiftMonth(1)} className="p-1.5 rounded hover:bg-slate-200 transition"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
                 </div>
-                <button onClick={() => shiftMonth(1)} className="p-1.5 rounded hover:bg-slate-200 transition"><ChevronRight className="w-4 h-4 text-slate-500" /></button>
             </div>
         </div>
       </div>
@@ -131,23 +187,24 @@ const PayablesPage: React.FC = () => {
               <thead className="bg-slate-100 text-xs font-semibold text-slate-500 sticky top-0">
                 <tr>
                   <th className="px-4 py-2">支払先</th>
-                  <th className="px-4 py-2">カテゴリ</th>
+                  <th className="px-4 py-2">{isAggregated ? '件数' : 'カテゴリ'}</th>
                   <th className="px-4 py-2 text-right">金額</th>
                   <th className="px-4 py-2 text-right">支払済</th>
                   <th className="px-4 py-2 text-right">未払残高</th>
-                  <th className="px-4 py-2">発生日</th>
+                  <th className="px-4 py-2">{isAggregated ? '最新発生日' : '発生日'}</th>
                   <th className="px-4 py-2">支払期日</th>
                   <th className="px-4 py-2">ステータス</th>
                 </tr>
               </thead>
               <tbody className="text-sm text-slate-700 divide-y divide-slate-100">
-                {payables.map((item) => {
+                {displayPayables.map((item, idx) => {
                   const isOverdue = item.status !== 'paid' && item.due && item.due < today;
                   const unpaid = item.amount - item.paidAmount;
+                  const key = isAggregated ? `group-${item.supplier}-${idx}` : item.id;
                   return (
-                    <tr key={item.id} className={`hover:bg-slate-50 ${isOverdue ? 'bg-red-50/50' : ''}`}>
+                    <tr key={key} className={`hover:bg-slate-50 ${isOverdue ? 'bg-red-50/50' : ''}`}>
                       <td className="px-4 py-3 font-medium">{item.supplier}</td>
-                      <td className="px-4 py-3 text-slate-500 text-xs">{item.category}</td>
+                      <td className="px-4 py-3 text-slate-500 text-xs">{isAggregated ? `${(item as any).count} 件` : item.category}</td>
                       <td className="px-4 py-3 text-right font-mono font-semibold">¥{item.amount.toLocaleString()}</td>
                       <td className="px-4 py-3 text-right font-mono text-emerald-600">{item.paidAmount > 0 ? `¥${item.paidAmount.toLocaleString()}` : '-'}</td>
                       <td className="px-4 py-3 text-right font-mono font-bold">{unpaid > 0 ? `¥${unpaid.toLocaleString()}` : '-'}</td>

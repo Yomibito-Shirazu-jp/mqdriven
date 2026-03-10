@@ -40,6 +40,10 @@ const ExpenseAnalysisPage: React.FC = () => {
 
   // 月別タブ: 展開中の月
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
+  // 勘定科目別タブ: 展開中の行キー ("YYYY-MM-DD::account_id")
+  const [expandedAccountKey, setExpandedAccountKey] = useState<string | null>(null);
+  // 仕入先別タブ: 展開中の行キー ("YYYY-MM-DD::supplier_name")
+  const [expandedSupplierKey, setExpandedSupplierKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   // TSV生成: 月別×科目のクロス集計（スプレッドシート貼り付け用）
@@ -78,25 +82,61 @@ const ExpenseAnalysisPage: React.FC = () => {
     return [header, ...rows, totalRow].join('\n');
   }, [monthlyDetailData]);
 
-  const handleCopyTSV = useCallback(async () => {
-    const tsv = generateMonthlyTSV();
-    if (!tsv) return;
+  const copyToClipboard = useCallback(async (text: string) => {
+    if (!text) return;
     try {
-      await navigator.clipboard.writeText(tsv);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(text);
     } catch {
-      // fallback
       const textarea = document.createElement('textarea');
-      textarea.value = tsv;
+      textarea.value = text;
       document.body.appendChild(textarea);
       textarea.select();
       document.execCommand('copy');
       document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     }
-  }, [generateMonthlyTSV]);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, []);
+
+  // 勘定科目別タブTSV
+  const generateByAccountTSV = useCallback(() => {
+    if (filteredByAccount.length === 0) return '';
+    const header = ['月', '科目コード', '科目名', '件数', '金額'].join('\t');
+    const rows = filteredByAccount.map(item =>
+      [formatMonth(item.month), item.account_code || '', item.account_name || '', item.line_count, Math.round(item.total_amount || 0)].join('\t')
+    );
+    return [header, ...rows].join('\n');
+  }, [filteredByAccount]);
+
+  // 仕入先別タブTSV
+  const generateBySupplierTSV = useCallback(() => {
+    if (filteredBySupplier.length === 0) return '';
+    const header = ['月', '仕入先名', '件数', '金額'].join('\t');
+    const rows = filteredBySupplier.map(item =>
+      [formatMonth(item.month), item.supplier_name || '', item.line_count, Math.round(item.total_amount || 0)].join('\t')
+    );
+    return [header, ...rows].join('\n');
+  }, [filteredBySupplier]);
+
+  // プロジェクト別タブTSV
+  const generateByProjectTSV = useCallback(() => {
+    if (filteredByProject.length === 0) return '';
+    const header = ['月', 'プロジェクトコード', '件数', '金額'].join('\t');
+    const rows = filteredByProject.map(item =>
+      [formatMonth(item.month), item.project_code || '', item.line_count, Math.round(item.total_amount || 0)].join('\t')
+    );
+    return [header, ...rows].join('\n');
+  }, [filteredByProject]);
+
+  // 明細一覧タブTSV
+  const generateDetailsTSV = useCallback(() => {
+    if (sortedExpenseLines.length === 0) return '';
+    const header = ['発生日', '科目コード', '勘定科目', '仕入先/摘要', '金額'].join('\t');
+    const rows = sortedExpenseLines.map(line =>
+      [line.occurred_on?.slice(0, 10) || '', line.account_code || '', line.account_name || '', line.supplier_name || '', Math.round(line.amount || 0)].join('\t')
+    );
+    return [header, ...rows].join('\n');
+  }, [sortedExpenseLines]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -333,6 +373,31 @@ const ExpenseAnalysisPage: React.FC = () => {
   };
 
   const tooltipFormatter = (value: number) => [`¥${value.toLocaleString()}`, '金額'];
+
+  const renderCopyButton = (generator: () => string) => (
+    <div className="flex justify-end mb-2">
+      <button
+        onClick={() => copyToClipboard(generator())}
+        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg shadow transition-colors ${
+          copied
+            ? 'bg-green-500 text-white'
+            : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-slate-600'
+        }`}
+      >
+        {copied ? (
+          <>
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            コピー済み
+          </>
+        ) : (
+          <>
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+            スプレッドシート用コピー
+          </>
+        )}
+      </button>
+    </div>
+  );
 
   // -- Pie chart data --
   const pieData = useMemo(() => {
@@ -618,30 +683,7 @@ const ExpenseAnalysisPage: React.FC = () => {
         {/* ===== MONTHLY TAB ===== */}
         {activeTab === 'monthly' && (
           <div className="space-y-4">
-            {monthlyDetailData.length > 0 && (
-              <div className="flex justify-end">
-                <button
-                  onClick={handleCopyTSV}
-                  className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg shadow transition-colors ${
-                    copied
-                      ? 'bg-green-500 text-white'
-                      : 'bg-white dark:bg-slate-700 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-slate-600'
-                  }`}
-                >
-                  {copied ? (
-                    <>
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                      コピー済み
-                    </>
-                  ) : (
-                    <>
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                      スプレッドシート用コピー
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
+            {monthlyDetailData.length > 0 && renderCopyButton(generateMonthlyTSV)}
             {monthlyDetailData.length === 0 ? (
               <EmptyState icon={TrendingUp} title="データなし" message="選択期間にデータがありません" />
             ) : (
@@ -724,7 +766,9 @@ const ExpenseAnalysisPage: React.FC = () => {
 
         {/* ===== DETAILS TAB ===== */}
         {activeTab === 'details' && (
-          <div className="overflow-x-auto">
+          <div>
+            {filteredLines.length > 0 && renderCopyButton(generateDetailsTSV)}
+            <div className="overflow-x-auto">
             {filteredLines.length === 0 ? (
               <EmptyState icon={TrendingUp} title="データなし" message="選択期間にデータがありません" />
             ) : (
@@ -751,44 +795,153 @@ const ExpenseAnalysisPage: React.FC = () => {
                 </tbody>
               </table>
             )}
+            </div>
           </div>
         )}
 
-        {/* ===== BY ACCOUNT TAB ===== */}
-        {activeTab === 'byAccount' && (
-          <div className="overflow-x-auto">
-            {filteredByAccount.length === 0 ? (
-              <EmptyState icon={TrendingUp} title="データなし" message="選択期間にデータがありません" />
-            ) : (
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300">月</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300">科目コード</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300">科目名</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300">件数</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider dark:text-gray-300">金額</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200 dark:bg-slate-800 dark:divide-gray-700">
-                  {filteredByAccount.map((item, index) => (
-                    <tr key={`${item.month}-${item.account_id}-${index}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{formatMonth(item.month)}</td>
-                      <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 font-mono">{item.account_code || '-'}</td>
-                      <td className="px-6 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{item.account_name || '-'}</td>
-                      <td className="px-6 py-3 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400">{item.line_count}件</td>
-                      <td className="px-6 py-3 whitespace-nowrap text-sm text-right font-medium text-gray-900 dark:text-gray-100">{formatCurrency(item.total_amount)}</td>
+        {/* ===== BY ACCOUNT TAB (ピボット表) ===== */}
+        {activeTab === 'byAccount' && (() => {
+          if (filteredByAccount.length === 0) {
+            return <EmptyState icon={TrendingUp} title="データなし" message="選択期間にデータがありません" />;
+          }
+          const monthSet = new Set<string>();
+          type AccEntry = { id: string; code: string; name: string; byMonth: Map<string, number> };
+          const accountMap = new Map<string, AccEntry>();
+          for (const item of filteredByAccount) {
+            const mk = item.month ? item.month.slice(0, 7) : '';
+            if (!mk) continue;
+            monthSet.add(mk);
+            const ak = item.account_id || item.account_code || 'x';
+            if (!accountMap.has(ak)) {
+              accountMap.set(ak, { id: item.account_id || ak, code: item.account_code || '', name: item.account_name || '不明', byMonth: new Map() });
+            }
+            const prev = accountMap.get(ak)!.byMonth.get(mk) || 0;
+            accountMap.get(ak)!.byMonth.set(mk, prev + Number(item.total_amount || 0));
+          }
+          const months = [...monthSet].sort();
+          const accounts = [...accountMap.values()]
+            .map(a => ({ ...a, total: [...a.byMonth.values()].reduce((s, n) => s + n, 0) }))
+            .sort((a, b) => b.total - a.total);
+          const monthTotals = months.map(m => accounts.reduce((s, a) => s + (a.byMonth.get(m) || 0), 0));
+          const grandTotal = monthTotals.reduce((s, n) => s + n, 0);
+
+          return (
+            <div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm border-collapse whitespace-nowrap">
+                  <thead>
+                    <tr className="bg-slate-100 dark:bg-slate-700 border-b border-slate-200 dark:border-slate-600">
+                      <th className="sticky left-0 z-10 bg-slate-100 dark:bg-slate-700 px-3 py-2.5 text-left text-xs font-semibold text-slate-500 dark:text-slate-300 border-r border-slate-200 dark:border-slate-600 w-16">コード</th>
+                      <th className="sticky left-[72px] z-10 bg-slate-100 dark:bg-slate-700 px-4 py-2.5 text-left text-xs font-semibold text-slate-500 dark:text-slate-300 border-r border-slate-200 dark:border-slate-600 min-w-[180px]">科目名</th>
+                      {months.map(m => {
+                        const [y, mo] = m.split('-');
+                        return (
+                          <th key={m} className="px-4 py-2.5 text-right text-xs font-semibold text-slate-500 dark:text-slate-300 border-l border-slate-100 dark:border-slate-600 min-w-[120px]">
+                            {y}年{parseInt(mo)}月
+                          </th>
+                        );
+                      })}
+                      <th className="px-4 py-2.5 text-right text-xs font-bold text-blue-700 dark:text-blue-300 border-l border-slate-200 dark:border-slate-600 bg-blue-50 dark:bg-blue-900/20 min-w-[130px]">合計</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        )}
+                  </thead>
+                  <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-100 dark:divide-slate-700">
+                    {accounts.map(acc => {
+                      const openCellMonth = expandedAccountKey?.startsWith(`${acc.id}::`) ? expandedAccountKey.slice(acc.id.length + 2) : null;
+                      const detailLines = openCellMonth
+                        ? filteredLines.filter(l => l.account_id === acc.id && l.occurred_on && l.occurred_on.slice(0, 7) === openCellMonth)
+                            .sort((a, b) => Math.abs(b.amount || 0) - Math.abs(a.amount || 0))
+                        : [];
+                      return (
+                        <React.Fragment key={acc.id}>
+                          <tr className="group hover:bg-slate-50 dark:hover:bg-slate-700/40">
+                            <td className="sticky left-0 z-10 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-700/40 px-3 py-2.5 font-mono text-xs text-slate-400 dark:text-slate-500 border-r border-slate-100 dark:border-slate-700">{acc.code}</td>
+                            <td className="sticky left-[72px] z-10 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-700/40 px-4 py-2.5 font-medium text-slate-800 dark:text-slate-200 border-r border-slate-100 dark:border-slate-700 min-w-[180px]">{acc.name}</td>
+                            {months.map(m => {
+                              const amt = acc.byMonth.get(m) || 0;
+                              const cellKey = `${acc.id}::${m}`;
+                              const isActive = expandedAccountKey === cellKey;
+                              return (
+                                <td
+                                  key={m}
+                                  onClick={() => amt > 0 && setExpandedAccountKey(isActive ? null : cellKey)}
+                                  className={`px-4 py-2.5 text-right font-mono border-l border-slate-50 dark:border-slate-700/50 transition-colors
+                                    ${amt > 0 ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20' : 'text-slate-200 dark:text-slate-700'}
+                                    ${isActive ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold' : amt > 0 ? 'text-slate-800 dark:text-slate-100' : ''}`}
+                                >
+                                  {amt > 0 ? `¥${Math.round(amt).toLocaleString()}` : '−'}
+                                </td>
+                              );
+                            })}
+                            <td className="px-4 py-2.5 text-right font-mono font-bold text-blue-700 dark:text-blue-300 border-l border-blue-100 dark:border-blue-800/50 bg-blue-50/50 dark:bg-blue-900/10">
+                              ¥{Math.round(acc.total).toLocaleString()}
+                            </td>
+                          </tr>
+                          {openCellMonth && (
+                            <tr>
+                              <td colSpan={2 + months.length + 1} className="p-0">
+                                <div className="bg-blue-50 dark:bg-blue-900/10 border-b border-blue-200 dark:border-blue-800">
+                                  <div className="flex items-center justify-between px-6 py-2 bg-blue-100/60 dark:bg-blue-800/30">
+                                    <span className="text-xs font-semibold text-blue-800 dark:text-blue-200">
+                                      {openCellMonth.split('-').map((v, i) => i === 0 ? `${v}年` : `${parseInt(v)}月`).join('')}
+                                      {' / '}{acc.code} {acc.name} — {detailLines.length}件
+                                    </span>
+                                    <button onClick={() => setExpandedAccountKey(null)} className="text-xs text-blue-500 hover:text-blue-700">✕ 閉じる</button>
+                                  </div>
+                                  {detailLines.length === 0 ? (
+                                    <p className="px-8 py-3 text-sm text-gray-400">明細データが見つかりません</p>
+                                  ) : (
+                                    <table className="min-w-full">
+                                      <thead>
+                                        <tr className="border-b border-blue-100 dark:border-blue-800/50">
+                                          <th className="px-8 py-1.5 text-left text-xs font-semibold text-blue-700 dark:text-blue-300">日付</th>
+                                          <th className="px-4 py-1.5 text-left text-xs font-semibold text-blue-700 dark:text-blue-300">支払先 / 摘要</th>
+                                          <th className="px-4 py-1.5 text-right text-xs font-semibold text-blue-700 dark:text-blue-300">金額</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="divide-y divide-blue-100/70 dark:divide-blue-800/20">
+                                        {detailLines.map((line, li) => (
+                                          <tr key={line.journal_line_id || li} className="hover:bg-blue-100/40">
+                                            <td className="px-8 py-1.5 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDate(line.occurred_on)}</td>
+                                            <td className="px-4 py-1.5 text-sm text-gray-700 dark:text-gray-300 max-w-md truncate">{line.supplier_name || line.entry_description || line.description || '−'}</td>
+                                            <td className="px-4 py-1.5 text-sm text-right font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">{formatCurrency(line.amount)}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-slate-100 dark:bg-slate-700 font-bold border-t-2 border-slate-300 dark:border-slate-500">
+                      <td colSpan={2} className="sticky left-0 z-10 bg-slate-100 dark:bg-slate-700 px-4 py-2.5 text-xs text-slate-700 dark:text-slate-200 border-r border-slate-200 dark:border-slate-600">月合計</td>
+                      {monthTotals.map((total, i) => (
+                        <td key={i} className="px-4 py-2.5 text-right font-mono text-sm text-slate-800 dark:text-slate-100 border-l border-slate-100 dark:border-slate-600">
+                          ¥{Math.round(total).toLocaleString()}
+                        </td>
+                      ))}
+                      <td className="px-4 py-2.5 text-right font-mono text-sm font-bold text-blue-700 dark:text-blue-300 border-l border-blue-200 dark:border-blue-800 bg-blue-100/50 dark:bg-blue-900/20">
+                        ¥{Math.round(grandTotal).toLocaleString()}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+              <p className="mt-2 px-1 text-xs text-gray-400">※ 金額セルをクリックすると、その月・科目の明細が展開されます</p>
+            </div>
+          );
+        })()}
 
         {/* ===== BY SUPPLIER TAB ===== */}
         {activeTab === 'bySupplier' && (
-          <div className="overflow-x-auto">
+          <div>
+            {filteredBySupplier.length > 0 && renderCopyButton(generateBySupplierTSV)}
+            <div className="overflow-x-auto">
             {filteredBySupplier.length === 0 ? (
               <EmptyState icon={TrendingUp} title="データなし" message="選択期間にデータがありません" />
             ) : (
@@ -813,12 +966,15 @@ const ExpenseAnalysisPage: React.FC = () => {
                 </tbody>
               </table>
             )}
+            </div>
           </div>
         )}
 
         {/* ===== BY PROJECT TAB ===== */}
         {activeTab === 'byProject' && (
-          <div className="overflow-x-auto">
+          <div>
+            {filteredByProject.length > 0 && renderCopyButton(generateByProjectTSV)}
+            <div className="overflow-x-auto">
             {filteredByProject.length === 0 ? (
               <EmptyState icon={TrendingUp} title="データなし" message="選択期間にデータがありません" />
             ) : (
@@ -843,6 +999,7 @@ const ExpenseAnalysisPage: React.FC = () => {
                 </tbody>
               </table>
             )}
+            </div>
           </div>
         )}
       </div>

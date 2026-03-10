@@ -1,6 +1,6 @@
 ﻿import * as React from 'react';
 import { Page, EmployeeUser } from '../types';
-import { Calendar, ClipboardList, Settings, Briefcase, DollarSign, Inbox, PieChart, BookOpen, CheckCircle, ChevronLeft, ChevronRight, ChevronDown, Mail, X } from './Icons';
+import { Calendar, ClipboardList, Settings, Briefcase, DollarSign, Inbox, PieChart, BookOpen, CheckCircle, ChevronLeft, ChevronRight, ChevronDown, Mail, X, Upload, Calculator } from './Icons';
 
 interface SidebarProps {
   currentPage: Page;
@@ -35,13 +35,12 @@ const BASE_NAV_CATEGORIES: NavCategoryType[] = [
     name: '営業',
     icon: Briefcase,
     items: [
+      { page: 'business_forms_hub', name: '業務プロセス管理', icon: ClipboardList },
       { page: 'sales_leads', name: 'リード管理' },
-      { page: 'sales_customers', name: '取引先' },
-      { page: 'sales_customers_chart', name: '顧客/お客様カルテ' },
-      { page: 'sales_estimates', name: '見積管理' },
-      { page: 'sales_orders', name: '受注・予算管理' },
-      { page: 'simple_estimates', name: 'AI見積もり作成' },
-      { page: 'newsletter', name: 'メールマガジン', icon: Mail },
+      { page: 'sales_customers', name: '取引先Master' },
+      { page: 'sales_customers_chart', name: '顧客カルテ/ランキング分析' },
+      { page: 'sales_estimates', name: '見積履歴' },
+      { page: 'detailed_estimate', name: '戦略見積作成(MQ)', icon: Calculator },
     ],
   },
   {
@@ -58,6 +57,7 @@ const BASE_NAV_CATEGORIES: NavCategoryType[] = [
     icon: CheckCircle,
     items: [
       { page: 'approval_list', name: '承認一覧', icon: CheckCircle },
+      { page: 'approval_form_daily', name: '日報' },
       { page: 'approval_form_expense', name: '経費精算' },
       { page: 'approval_form_transport', name: '交通費精算' },
       { page: 'approval_form_leave', name: '休暇申請' },
@@ -69,12 +69,13 @@ const BASE_NAV_CATEGORIES: NavCategoryType[] = [
     name: '会計',
     icon: DollarSign,
     items: [
+      { page: 'purchasing_invoices', name: '請求書インポート', badge: 0, icon: Upload },
       { page: 'accounting_approved_applications', name: '承認済一覧' },
       { page: 'accounting_journal_review', name: '仕訳レビュー' },
       { page: 'accounting_journal', name: '仕訳帳' },
       { page: 'accounting_general_ledger', name: '総勘定元帳' },
-      { page: 'accounting_payables', name: '支払管理' },
-      { page: 'accounting_receivables', name: '売掛金管理' },
+      { page: 'accounting_payables', name: '買掛管理' },
+      { page: 'accounting_receivables', name: '売掛管理' },
       { page: 'accounting_cash_schedule', name: '資金繰り表' },
       { page: 'accounting_trial_balance', name: '試算表' },
       { page: 'accounting_profit_loss', name: '損益計算書' },
@@ -91,6 +92,7 @@ const BASE_NAV_CATEGORIES: NavCategoryType[] = [
     items: [
       { page: 'analysis_dashboard', name: '分析ダッシュボード' },
       { page: 'analysis_ranking', name: '売上ランキング' },
+      { page: 'turnaround_plan', name: '🔥 起死回生プラン' },
     ],
   },
   {
@@ -257,31 +259,31 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
 
       <aside
         data-sidebar-mobile-toggle
-        className={`${sidebarWidth} ${sidebarTransition} flex-shrink-0 bg-white text-slate-700 border-r border-slate-200 flex flex-col p-3 sm:p-4 h-screen sm:h-screen min-h-0 fixed sm:relative z-50 sm:z-40 ${shouldShowMobile ? 'translate-x-0' : '-translate-x-full'} sm:translate-x-0`}
+        className={`${sidebarWidth} ${sidebarTransition} flex-shrink-0 bg-[#1a1f2e] text-slate-300 border-r border-[#2a3040] flex flex-col p-3 sm:p-4 h-screen sm:h-screen min-h-0 fixed sm:relative z-50 sm:z-40 ${shouldShowMobile ? 'translate-x-0' : '-translate-x-full'} sm:translate-x-0`}
       >
         {/* Mobile header */}
-        <div className="sm:hidden flex items-center justify-between px-3 py-4 border-b border-slate-200">
-          <h1 className="text-lg font-bold text-slate-800">文唱堂印刷 業務管理</h1>
+        <div className="sm:hidden flex items-center justify-between px-3 py-4 border-b border-[#2a3040]">
+          <h1 className="text-lg font-bold text-white">文唱堂印刷 業務管理</h1>
           <button
             type="button"
             onClick={() => {
               setIsMobileOpen(false);
             }}
-            className="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
+            className="h-8 w-8 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 transition-colors"
             aria-label="閉じる"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className={`px-3 py-4 border-b border-slate-200 overflow-hidden ${isCollapsed ? 'text-center' : ''} hidden sm:block`}>
+        <div className={`px-3 py-4 border-b border-[#2a3040] overflow-hidden ${isCollapsed ? 'text-center' : ''} hidden sm:block`}>
           <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'}`}>
-            <h1 className={`text-xl font-bold tracking-tight text-slate-800 whitespace-nowrap ${isCollapsed ? 'hidden' : 'block'}`}>文唱堂印刷 業務管理</h1>
+            <h1 className={`text-xl font-bold tracking-tight text-white whitespace-nowrap ${isCollapsed ? 'hidden' : 'block'}`}>文唱堂印刷 業務管理</h1>
             {!isCollapsed && (
               <button
                 type="button"
                 onClick={toggleSidebar}
-                className="ml-auto h-8 w-8 flex items-center justify-center rounded-lg bg-slate-100/80 text-slate-500 hover:bg-slate-200 transition-colors"
+                className="ml-auto h-8 w-8 flex items-center justify-center rounded-lg bg-white/10 text-slate-400 hover:bg-white/20 transition-colors"
                 aria-label="サイドバーを折りたたむ"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -289,21 +291,21 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
             )}
           </div>
         </div>
-        <div className={`mt-2 flex flex-wrap gap-1 text-[10px] text-slate-500 ${isCollapsed ? 'justify-center' : ''}`}>
+        <div className={`mt-2 flex flex-wrap gap-1 text-[10px] text-slate-400 ${isCollapsed ? 'justify-center' : ''}`}>
           {isCollapsed && (
             <button
               type="button"
               onClick={toggleSidebar}
-              className="block w-6 h-6 text-center leading-6 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors"
+              className="block w-6 h-6 text-center leading-6 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
               aria-label="サイドバーを展開"
             >
-              <ChevronRight className="w-3 h-3 text-slate-600 mx-auto" />
+              <ChevronRight className="w-3 h-3 text-slate-400 mx-auto" />
             </button>
           )}
-          <a href="https://erp.b-p.co.jp" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="業務">業</a>
-          <a href="https://mq.b-p.co.jp" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="MQ">MQ</a>
-          <a href="https://dtp.b-p.co.jp" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="DTP">D</a>
-          <a href="https://co2.b-p.co.jp/" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="エコ">E</a>
+          <a href="https://erp.b-p.co.jp" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="業務">業</a>
+          <a href="https://mq.b-p.co.jp" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="MQ">MQ</a>
+          <a href="https://dtp.b-p.co.jp" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="DTP">D</a>
+          <a href="https://co2.b-p.co.jp/" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="エコ">E</a>
         </div>
         <nav className={`flex-1 mt-2 sm:mt-6 space-y-2 overflow-y-auto min-h-0 ${isCollapsed ? 'px-1' : 'px-2'}`}>
           <ul>
@@ -312,12 +314,12 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
 
               return (
                 <React.Fragment key={category.id}>
-                  <li className={`mt-6 px-3 text-[11px] font-bold text-slate-400 tracking-wider mb-1 ${shouldShowDesktop ? '' : 'sr-only'} ${!shouldShowMobile ? 'hidden sm:block' : ''}`}>
+                  <li className={`mt-6 px-3 text-[11px] font-bold text-slate-500 tracking-wider mb-1 ${shouldShowDesktop ? '' : 'sr-only'} ${!shouldShowMobile ? 'hidden sm:block' : ''}`}>
                     {!isCollapsed && (
                       <button
                         type="button"
                         onClick={() => toggleCategory(category.id)}
-                        className="flex items-center w-full hover:text-slate-600 transition-colors"
+                        className="flex items-center w-full hover:text-slate-300 transition-colors"
                         aria-label={isCategoryExpanded ? `${category.name}カテゴリを折りたたむ` : `${category.name}カテゴリを展開する`}
                       >
                         {category.icon && <category.icon className="w-4 h-4 mr-2" />}
@@ -351,10 +353,10 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
                               }
                             }
                           }}
-                          className={`flex items-center p-2.5 sm:px-3 sm:py-2.5 rounded-md transition-colors duration-200 ${isActive ? 'bg-primary-50 text-primary-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                          className={`flex items-center p-2.5 sm:px-3 sm:py-2.5 rounded-md transition-colors duration-200 ${isActive ? 'bg-primary-700/20 text-primary-400 border-l-2 border-primary-400' : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
                             } ${isCollapsed ? 'justify-center' : 'gap-3'} text-[13px] min-h-[40px] mb-0.5`}
                         >
-                          {ItemIcon && <ItemIcon className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? 'text-primary-600' : 'text-slate-500'}`} />}
+                          {ItemIcon && <ItemIcon className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? 'text-primary-400' : 'text-slate-500'}`} />}
                           <span className={`font-medium ${shouldShowMobile ? 'block' : 'hidden sm:block'} ${isCollapsed ? 'sm:hidden' : ''}`}>{item.name}</span>
                           {item.children && !isCollapsed && (
                             <button
@@ -364,7 +366,7 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
                                 e.stopPropagation();
                                 setExpandedItems(prev => ({ ...prev, [item.page]: !(prev[item.page] ?? false) }));
                               }}
-                              className="ml-auto p-1 rounded hover:bg-slate-600/40"
+                              className="ml-auto p-1 rounded hover:bg-white/10"
                               aria-label={isExpanded ? '折りたたむ' : '展開する'}
                             >
                               <ChevronDown className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
@@ -399,7 +401,7 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
                                         setIsMobileOpen(false);
                                       }
                                     }}
-                                    className={`flex items-center rounded-md px-3 py-2 text-[12.5px] transition-colors duration-200 ${isChildPageActive ? 'text-primary-700 font-semibold' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                                    className={`flex items-center rounded-md px-3 py-2 text-[12.5px] transition-colors duration-200 ${isChildPageActive ? 'text-primary-400 font-semibold' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
                                       } ml-8 my-0.5`}
                                   >
                                     <span className={`font-medium ${shouldShowMobile ? 'block' : 'hidden sm:block'}`}>{child.name}</span>
@@ -417,18 +419,18 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
             })}
           </ul>
         </nav>
-        <div className="mt-auto pt-4 border-t border-slate-200 space-y-4">
+        <div className="mt-auto pt-4 border-t border-[#2a3040] space-y-4">
           {supabaseUserEmail && (
-            <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-100">
+            <div className="px-3 py-2 rounded-lg bg-white/5 border border-white/10">
               <p className="text-[11px] text-slate-500 mb-1">ログイン中のユーザー</p>
-              <p className="text-[13px] font-semibold text-slate-700 break-all">{supabaseUserEmail}</p>
+              <p className="text-[13px] font-semibold text-slate-300 break-all">{supabaseUserEmail}</p>
             </div>
           )}
           {onSignOut && (
             <button
               type="button"
               onClick={onSignOut}
-              className="w-full px-3 py-2 text-[13px] font-semibold text-center text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-800 rounded-md transition-colors"
+              className="w-full px-3 py-2 text-[13px] font-semibold text-center text-slate-300 bg-white/5 border border-white/10 hover:bg-white/10 hover:text-white rounded-md transition-colors"
             >
               ログアウト
             </button>

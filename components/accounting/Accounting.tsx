@@ -45,9 +45,10 @@ const AccountingPage: React.FC<AccountingPageProps> = (props) => {
                 let expenseAmount: number;
                 let consumptionTaxAmount: number;
 
+                let totalCreditAmount = data.totalAmount;
+
                 if (data.taxInclusive) {
-                    // 税込請求書の場合: 税額を分離
-                    // 税額が明示されていればそれを使用、なければ合計から逆算
+                    // 税込請求書の場合: 合計金額から税を抽出
                     if (data.taxAmount && data.taxAmount > 0) {
                         consumptionTaxAmount = data.taxAmount;
                         expenseAmount = data.totalAmount - consumptionTaxAmount;
@@ -60,16 +61,17 @@ const AccountingPage: React.FC<AccountingPageProps> = (props) => {
                         consumptionTaxAmount = data.totalAmount - expenseAmount;
                     }
                 } else {
-                    // 税抜請求書の場合: そのまま使用
+                    // 税抜請求書の場合: 合計金額を税抜額とし、税を外出しで加算
                     expenseAmount = data.totalAmount;
                     consumptionTaxAmount = data.taxAmount || Math.round(data.totalAmount * 0.1);
+                    totalCreditAmount = expenseAmount + consumptionTaxAmount;
                 }
 
-                // 買掛金（負債）の計上 - 税込合計
+                // 買掛金（負債）の計上 - 最終合計
                 const creditEntry = {
                     account: '買掛金',
                     description: `仕入 ${data.vendorName} (${data.description})`,
-                    credit: data.totalAmount,
+                    credit: totalCreditAmount,
                     debit: 0,
                 };
                 onAddEntry(creditEntry);
@@ -122,7 +124,7 @@ const AccountingPage: React.FC<AccountingPageProps> = (props) => {
             return <LaborCostManagement employees={employees || []} />;
 
         case 'accounting_general_ledger':
-            return <GeneralLedger entries={journalEntries} accountItems={accountItems} />;
+            return <GeneralLedger />;
 
         case 'accounting_trial_balance':
             return <TrialBalancePage />;

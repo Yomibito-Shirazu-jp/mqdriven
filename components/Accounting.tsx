@@ -98,10 +98,10 @@ const AccountingPage: React.FC<any> = (props) => {
             return <LaborCostManagement employees={employees || []} />;
 
         case 'accounting_general_ledger':
-            return <GeneralLedger entries={journalEntries} accountItems={accountItems} />;
+            return <GeneralLedger />;
         
         case 'accounting_trial_balance':
-            return <TrialBalancePage journalEntries={journalEntries} />;
+            return <TrialBalancePage />;
         
         case 'accounting_period_closing':
             return <PeriodClosingPage addToast={addToast} jobs={jobs} applications={applications} journalEntries={journalEntries} onNavigate={onNavigate} />;

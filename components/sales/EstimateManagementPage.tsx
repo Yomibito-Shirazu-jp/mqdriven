@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Estimate, SortConfig, EmployeeUser, Customer, Toast, EstimateStatus, EstimateDetail } from '../../types';
 import SortableHeader from '../ui/SortableHeader';
 import EmptyState from '../ui/EmptyState';
-import { FileText, PlusCircle, Pencil, X, Loader, Save } from '../Icons';
+import { FileText, PlusCircle, Pencil, X, Loader, Save, Calculator } from '../Icons';
 import { formatJPY, formatDate } from '../../utils';
 import EstimateDetailModal from './EstimateDetailModal';
 import { addEstimateDetail, deleteEstimateDetail, getEstimateDetails, updateEstimateDetail } from '../../services/dataService';
@@ -63,6 +63,7 @@ interface EstimateManagementPageProps {
     currentUser: EmployeeUser | null;
     searchTerm: string;
     isAIOff: boolean;
+    onNavigate?: (page: string, params?: any) => void;
 }
 
 const buildDefaultForm = (): EstimateFormState => ({
@@ -323,10 +324,12 @@ const EstimateManagementPage: React.FC<EstimateManagementPageProps> = ({
     customers: _customers,
     allUsers: _allUsers,
     onAddEstimate,
+    onShowAiEstimate,
     addToast,
     currentUser,
     searchTerm,
     isAIOff: _isAIOff,
+    onNavigate,
 }) => {
     const [sortConfig, setSortConfig] = useState<SortConfig | null>(null); // respect backend default (納品日 desc -> 更新日 desc)
     const [mqFilter, setMqFilter] = useState<MqFilter>('all'); // legacy quick filter (kept for compatibility)
@@ -1231,6 +1234,13 @@ const EstimateManagementPage: React.FC<EstimateManagementPageProps> = ({
                                                             title="詳細を表示"
                                                         >
                                                             <FileText className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => onNavigate?.('detailed_estimate', { id: estimate.id })}
+                                                            className="text-indigo-600 hover:text-indigo-800"
+                                                            title="詳細フォーム形式で編集"
+                                                        >
+                                                            <Calculator className="w-4 h-4" />
                                                         </button>
                                                         <button
                                                             onClick={() => {

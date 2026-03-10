@@ -52,20 +52,33 @@ describe('JournalReviewPage', () => {
     });
   });
 
-  it('removes the review card after confirming the journal entry', async () => {
+  it('renders journal review table with data', async () => {
+    render(<JournalReviewPage currentUser={{ id: 'user-1', name: 'Tester' }} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('テスト申請')).toBeInTheDocument();
+      expect(screen.getByText('仕訳レビュー')).toBeInTheDocument();
+    });
+  });
+
+  it('removes the review row after confirming the journal entry', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<JournalReviewPage currentUser={{ id: 'user-1', name: 'Tester' }} />);
 
-    const confirmButton = await screen.findByRole('button', { name: '仕訳を確定' });
-    await user.click(confirmButton);
+    // 確定リンクをクリック
+    const confirmLink = await screen.findByRole('button', { name: '確定' });
+    await user.click(confirmLink);
+
+    // 実行リンクをクリック
+    const executeLink = await screen.findByRole('button', { name: '実行' });
+    await user.click(executeLink);
 
     // アニメーション完了を待つ (500ms + 500ms)
     await vi.advanceTimersByTimeAsync(1100);
 
     await waitFor(() => {
-      expect(screen.queryByRole('button', { name: '仕訳を確定' })).not.toBeInTheDocument();
-      expect(screen.getByText('アーカイブ済みの仕訳')).toBeInTheDocument();
+      expect(screen.queryByText('テスト申請')).not.toBeInTheDocument();
     });
 
     vi.useRealTimers();
@@ -81,22 +94,30 @@ describe('JournalReviewPage', () => {
     });
   });
 
-  it('shows checkbox for draft entries', async () => {
+  it('shows checkboxes for draft entries', async () => {
     render(<JournalReviewPage currentUser={{ id: 'user-1', name: 'Tester' }} />);
 
     await waitFor(() => {
-      const checkbox = screen.getByRole('checkbox');
-      expect(checkbox).toBeInTheDocument();
-      expect(checkbox).not.toBeDisabled();
+      const checkboxes = screen.getAllByRole('checkbox');
+      // Header checkbox + row checkbox
+      expect(checkboxes.length).toBeGreaterThanOrEqual(2);
     });
   });
 
-  it('shows batch confirm button when items are selected', async () => {
+  it('shows batch confirm link when items are selected', async () => {
     const user = userEvent.setup();
     render(<JournalReviewPage currentUser={{ id: 'user-1', name: 'Tester' }} />);
 
-    const checkbox = await screen.findByRole('checkbox');
-    await user.click(checkbox);
+    await waitFor(() => {
+      expect(screen.getByText('テスト申請')).toBeInTheDocument();
+    });
+
+    // Find the row checkbox (not the header checkbox)
+    const checkboxes = screen.getAllByRole('checkbox');
+    const rowCheckbox = checkboxes.find(cb => !cb.closest('th'));
+    if (rowCheckbox) {
+      await user.click(rowCheckbox);
+    }
 
     await waitFor(() => {
       expect(screen.getByText(/一括確定/)).toBeInTheDocument();
@@ -121,7 +142,6 @@ describe('JournalReviewPage', () => {
     const user = userEvent.setup();
     render(<JournalReviewPage currentUser={{ id: 'user-1', name: 'Tester' }} />);
 
-    // データロード完了を待つ
     await screen.findByText('テスト申請');
 
     const purposeButton = screen.getByText('目的別');
@@ -129,6 +149,19 @@ describe('JournalReviewPage', () => {
 
     await waitFor(() => {
       expect(screen.getByText('セクション選択')).toBeInTheDocument();
+    });
+  });
+
+  it('shows inline 2-step confirm (確定 → 実行/取消)', async () => {
+    const user = userEvent.setup();
+    render(<JournalReviewPage currentUser={{ id: 'user-1', name: 'Tester' }} />);
+
+    const confirmLink = await screen.findByRole('button', { name: '確定' });
+    await user.click(confirmLink);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '実行' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '取消' })).toBeInTheDocument();
     });
   });
 });

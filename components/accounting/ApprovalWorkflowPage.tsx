@@ -14,6 +14,7 @@ import TransportExpenseForm from '../forms/TransportExpenseForm';
 import LeaveApplicationForm from '../forms/LeaveApplicationForm';
 import ApprovalForm from '../forms/ApprovalForm';
 import DailyReportForm from '../forms/DailyReportForm';
+import WeeklyReportForm from '../forms/WeeklyReportForm';
 import EmailNotificationSettings from '../forms/EmailNotificationSettings';
 
 interface ApprovalWorkflowPageProps {
@@ -445,16 +446,23 @@ const ApprovalWorkflowPage: React.FC<ApprovalWorkflowPageProps> = ({
             case 'TRP': return <TransportExpenseForm {...formProps} draftApplication={activeResumedApplication} />;
             case 'LEV': return <LeaveApplicationForm {...formProps} draftApplication={activeResumedApplication} />;
             case 'APL': return <ApprovalForm {...formProps} draftApplication={activeResumedApplication} />;
-        case 'DLY':
-            return (
-                <DailyReportForm
-                    {...formProps}
-                    draftApplication={activeResumedApplication}
-                    prefill={dailyReportPrefill}
-                    onPrefillApplied={onDailyReportPrefillApplied}
-                    customers={customers || []}
-                />
-            );
+            case 'DLY':
+                return (
+                    <DailyReportForm
+                        {...formProps}
+                        draftApplication={activeResumedApplication}
+                        prefill={dailyReportPrefill}
+                        onPrefillApplied={onDailyReportPrefillApplied}
+                        customers={customers || []}
+                    />
+                );
+            case 'WKR':
+                return (
+                    <WeeklyReportForm
+                        {...formProps}
+                        resumedApplication={activeResumedApplication}
+                    />
+                );
             default: return (
                 <div className="bg-white dark:bg-slate-800 p-8 rounded-2xl shadow-sm text-center">
                     <AlertTriangle className="w-12 h-12 text-red-500 mx-auto" />

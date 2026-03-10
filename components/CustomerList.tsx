@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Customer, SortConfig, Toast, EmployeeUser } from '../types';
-import { Pencil, Eye, Mail, Lightbulb, Users, PlusCircle, Loader, Save, X, Search } from './Icons';
+import { Pencil, Eye, Mail, Lightbulb, Users, PlusCircle, Loader, Save, X, Search, Trophy } from './Icons';
 import EmptyState from './ui/EmptyState';
 import SortableHeader from './ui/SortableHeader';
 import { generateSalesEmail, enrichCustomerData } from '../services/geminiService';
-import { createSignature } from '../utils';
-import { exportCustomersToSheets } from '../services/dataService';
+import { createSignature, formatJPY } from '../utils';
+import { exportCustomersToSheets, getCustomerSalesRankings } from '../services/dataService';
 
 interface CustomerListProps {
   customers: Customer[];
@@ -18,9 +18,10 @@ interface CustomerListProps {
   onNewCustomer: () => void;
   isAIOff: boolean;
   onShowBulkOCR?: () => void;
+  isChartMode?: boolean;
 }
 
-const CustomerList: React.FC<CustomerListProps> = ({ customers, searchTerm, onSelectCustomer, onUpdateCustomer, onAnalyzeCustomer, addToast, currentUser, onNewCustomer, isAIOff, onShowBulkOCR }) => {
+const CustomerList: React.FC<CustomerListProps> = ({ customers, searchTerm, onSelectCustomer, onUpdateCustomer, onAnalyzeCustomer, addToast, currentUser, onNewCustomer, isAIOff, onShowBulkOCR, isChartMode }) => {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'createdAt', direction: 'descending' });
   const [isGeneratingEmail, setIsGeneratingEmail] = useState<string | null>(null);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
@@ -31,6 +32,23 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, searchTerm, onSe
   const [exportResult, setExportResult] = useState<{ url: string; message: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const mounted = useRef(true);
+
+  const [viewMode, setViewMode] = useState<'ranking' | 'list'>(isChartMode ? 'ranking' : 'list');
+  const [rankings, setRankings] = useState<any[]>([]);
+  const [isLoadingRankings, setIsLoadingRankings] = useState(false);
+
+  useEffect(() => {
+    if (isChartMode && viewMode === 'ranking') {
+      setIsLoadingRankings(true);
+      getCustomerSalesRankings().then((data) => {
+        if (mounted.current) setRankings(data);
+      }).catch(e => {
+        if (mounted.current) addToast(e.message, 'error');
+      }).finally(() => {
+        if (mounted.current) setIsLoadingRankings(false);
+      });
+    }
+  }, [isChartMode, viewMode]);
 
   const ITEMS_PER_PAGE = 50;
 
@@ -276,12 +294,73 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, searchTerm, onSe
   };
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm overflow-hidden">
-      <div className="border-b border-slate-100 dark:border-slate-700 bg-slate-50/60 dark:bg-slate-900/40 px-6 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-xs text-slate-600 dark:text-slate-400">
-          {sortedCustomers.length > 0 ? `${startIndex}-${endIndex}件 / 全${sortedCustomers.length}件` : '0件'} {searchTerm ? `(検索: "${searchTerm}")` : ''}
+    <div className="overflow-hidden flex flex-col h-full bg-white dark:bg-slate-800 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700">
+      {isChartMode && (
+        <div className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-6 py-3 flex items-center gap-4">
+          <button onClick={() => setViewMode('ranking')} className={`px-5 py-2 text-sm font-semibold rounded-lg transition-colors duration-200 shadow-sm ${viewMode === 'ranking' ? 'bg-blue-600 text-white border border-blue-600' : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-600'}`}>ランキングで表示</button>
+          <button onClick={() => setViewMode('list')} className={`px-5 py-2 text-sm font-semibold rounded-lg transition-colors duration-200 shadow-sm ${viewMode === 'list' ? 'bg-blue-600 text-white border border-blue-600' : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-600'}`}>一覧で表示</button>
         </div>
-        <div className="flex items-center gap-2">
+      )}
+
+      {viewMode === 'ranking' ? (
+        <div className="p-6 overflow-y-auto flex-1">
+          {isLoadingRankings ? (
+            <div className="flex justify-center items-center py-20 px-8">
+              <Loader className="w-10 h-10 animate-spin text-blue-500 mr-4" />
+              <span className="text-slate-500 font-medium">ランキングデータを読み込み中...</span>
+            </div>
+          ) : rankings.length > 0 ? (
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
+              <table className="w-full text-sm text-left text-slate-600 dark:text-slate-400">
+                <thead className="text-sm font-medium text-slate-700 dark:text-slate-300 border-b-2 border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80">
+                  <tr>
+                    <th className="px-6 py-4 text-center border-r border-slate-100 dark:border-slate-700">順位</th>
+                    <th className="px-6 py-4 border-r border-slate-100 dark:border-slate-700">顧客名</th>
+                    <th className="px-6 py-4 text-right border-r border-slate-100 dark:border-slate-700">当期売上高</th>
+                    <th className="px-6 py-4 border-r border-slate-100 dark:border-slate-700">元データ名</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                  {rankings.map(r => {
+                    const customer = customers.find(c => c.id === r.customer_id);
+                    return (
+                      <tr 
+                        key={r.id} 
+                        onClick={() => customer && onSelectCustomer(customer)}
+                        className={`transition-colors ${customer ? 'cursor-pointer hover:bg-blue-50/50 dark:hover:bg-slate-700/50' : 'opacity-70'}`}
+                      >
+                        <td className="px-6 py-4 text-center w-20 border-r border-slate-50 dark:border-slate-700/50">
+                          {r.rank === 1 ? <div className="mx-auto flex items-center justify-center w-8 h-8 rounded-full bg-yellow-100 text-yellow-600 font-bold border border-yellow-200">1</div> : 
+                           r.rank === 2 ? <div className="mx-auto flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-bold border border-slate-200">2</div> : 
+                           r.rank === 3 ? <div className="mx-auto flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 text-orange-600 font-bold border border-orange-200">3</div> : 
+                           <span className="font-semibold text-slate-500">{r.rank}</span>}
+                        </td>
+                        <td className="px-6 py-4 font-semibold text-slate-800 dark:text-slate-200 border-r border-slate-50 dark:border-slate-700/50">
+                          {r.customer_name_raw}
+                        </td>
+                        <td className="px-6 py-4 text-right font-bold text-blue-600 dark:text-blue-400 border-r border-slate-50 dark:border-slate-700/50">
+                          {r.total ? formatJPY(r.total) : '¥0'}
+                        </td>
+                        <td className="px-6 py-4 text-xs text-slate-500">
+                          {r.customer_name_raw}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <EmptyState icon={Trophy} title="ランキングデータがありません" message="データベースにランキング情報が見つかりませんでした。" />
+          )}
+        </div>
+      ) : (
+        <div className="flex flex-col flex-1 min-h-0">
+          <div className="border-b border-slate-100 dark:border-slate-700 px-6 py-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-white dark:bg-slate-800">
+            <div className="text-sm font-medium text-slate-600 dark:text-slate-400">
+              {sortedCustomers.length > 0 ? `${startIndex}-${endIndex}件 / 全${sortedCustomers.length}件` : '0件'} {searchTerm ? <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded ml-2">検索: "{searchTerm}"</span> : ''}
+            </div>
+            <div className="flex items-center gap-3">
           {onShowBulkOCR && (
             <button
               type="button"
@@ -314,22 +393,22 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, searchTerm, onSe
         </div>
       )}
       <div className="overflow-x-auto overflow-y-auto max-h-[70vh]">
-        <table className="w-full text-base text-left text-slate-500 dark:text-slate-400 min-w-[1000px]">
-          <thead className="text-sm text-slate-700 uppercase bg-slate-50 dark:bg-slate-700 dark:text-slate-300">
+        <table className="w-full text-sm text-left text-slate-600 dark:text-slate-400 min-w-[1000px]">
+          <thead className="text-sm font-medium text-slate-700 dark:text-slate-300 border-b-2 border-slate-200 dark:border-slate-700">
             <tr>
               <SortableHeader sortKey="customerName" label="顧客名" sortConfig={sortConfig} requestSort={requestSort} />
               <SortableHeader sortKey="phoneNumber" label="電話番号" sortConfig={sortConfig} requestSort={requestSort} />
               <SortableHeader sortKey="address1" label="住所" sortConfig={sortConfig} requestSort={requestSort} />
               <SortableHeader sortKey="websiteUrl" label="Webサイト" sortConfig={sortConfig} requestSort={requestSort} />
               <SortableHeader sortKey="createdAt" label="登録日" sortConfig={sortConfig} requestSort={requestSort} />
-              <th scope="col" className="px-6 py-3 font-medium text-center">操作</th>
+              <th scope="col" className="px-6 py-4 font-medium text-center">操作</th>
             </tr>
           </thead>
           <tbody>
             {paginatedCustomers.map((customer) => {
               const isEditing = editingRowId === customer.id;
               return (
-                <tr key={customer.id} onClick={() => onSelectCustomer(customer)} className="group bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 odd:bg-slate-50 dark:odd:bg-slate-800/50 cursor-pointer">
+                <tr key={customer.id} onClick={() => onSelectCustomer(customer)} className="group border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 cursor-pointer">
                   <td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200">
                     {isEditing ? <InlineEditInput name="customerName" value={editedData.customerName} onChange={handleFieldChange} /> : customer.customer_name || customer.customerName}
                   </td>
@@ -365,11 +444,18 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, searchTerm, onSe
                           {!isAIOff && <button onClick={(e) => handleEnrich(e, customer)} disabled={enrichingId === customer.id} className="p-2 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700" title="AIで企業情報補完">
                             {enrichingId === customer.id ? <Loader className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
                           </button>}
-                          <button onClick={(e) => { e.stopPropagation(); onAnalyzeCustomer(customer) }} disabled={isAIOff} className="p-2 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50" title="AI企業分析"><Lightbulb className="w-5 h-5" /></button>
-                          <button onClick={(e) => handleGenerateProposal(e, customer)} disabled={isGeneratingEmail === customer.id || isAIOff} className="p-2 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50" title="提案メール作成">
-                            {isGeneratingEmail === customer.id ? <Loader className="w-5 h-5 animate-spin" /> : <Mail className="w-5 h-5" />}
-                          </button>
-                        </>
+                           <button onClick={(e) => { e.stopPropagation(); onAnalyzeCustomer(customer) }} disabled={isAIOff} className="p-2 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50" title="AI企業分析"><Lightbulb className="w-5 h-5" /></button>
+                           <button onClick={(e) => {
+                             e.stopPropagation();
+                             const name = customer.customer_name || customer.customerName;
+                             window.open(`https://www.google.com/search?q=${encodeURIComponent(name + ' 企業情報 調査')}`, '_blank');
+                           }} className="p-2 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700" title="企業情報をウェブで調査">
+                             <Search className="w-5 h-5 text-blue-500" />
+                           </button>
+                           <button onClick={(e) => handleGenerateProposal(e, customer)} disabled={isGeneratingEmail === customer.id || isAIOff} className="p-2 rounded-full text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50" title="提案メール作成">
+                             {isGeneratingEmail === customer.id ? <Loader className="w-5 h-5 animate-spin" /> : <Mail className="w-5 h-5" />}
+                           </button>
+                         </>
                       )}
                     </div>
                   </td>
@@ -453,6 +539,8 @@ const CustomerList: React.FC<CustomerListProps> = ({ customers, searchTerm, onSe
               </button>
             </div>
           </div>
+        </div>
+      )}
         </div>
       )}
     </div>

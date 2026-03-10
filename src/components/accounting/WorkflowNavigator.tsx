@@ -68,13 +68,13 @@ export const WorkflowNavigator: React.FC<WorkflowNavigatorProps> = ({ navigateTo
               
               <div className="flex flex-col md:flex-row gap-4 items-stretch relative">
                 {/* Step 1 */}
-                <button onClick={() => navigateTo('fax_ocr_intake')} className="flex-1 bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-xl p-4 text-left transition group relative z-10">
+                <button onClick={() => navigateTo('purchasing_invoices')} className="flex-1 bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-xl p-4 text-left transition group relative z-10">
                   <div className="flex justify-between items-start mb-2">
                     <span className="text-xs font-bold text-slate-400 group-hover:text-rose-400">STEP 1</span>
                     <ScanLine className="w-5 h-5 text-slate-400 group-hover:text-rose-500" />
                   </div>
-                  <h4 className="font-bold text-slate-700 mb-1">取込・スキャン</h4>
-                  <p className="text-xs text-slate-500 leading-tight">紙の領収書やPDF請求書をドラッグ＆ドロップで取り込みます。</p>
+                  <h4 className="font-bold text-slate-700 mb-1">請求書インポート (OCR)</h4>
+                  <p className="text-xs text-slate-500 leading-tight">領収書やPDF請求書をドラッグ＆ドロップで取り込み、AIで自動データ化します。</p>
                 </button>
 
                 <div className="hidden md:flex items-center justify-center text-slate-300"><ArrowRight /></div>

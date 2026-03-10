@@ -526,7 +526,16 @@ export const extractInvoiceDetails = async (
     const imagePart = { inlineData: { data: imageBase64, mimeType } };
     const textPart = {
       text:
-        "この画像から請求書の詳細情報をJSONで抽出してください。説明や挨拶は不要です。JSONのみで回答してください。支払期日、登録番号、支払先銀行情報、明細行（品名/数量/単価）も可能な限り含めてください。",
+        `この画像から請求書の詳細情報をJSONで抽出してください。
+以下のルールに厳格に従ってください：
+1. 説明や挨拶は不要です。純粋なJSONのみを返してください。
+2. 税込か税抜かの判定(taxInclusive)を必ず行ってください。
+   - 請求書に『税込』『内税』などの表記、または合計金額が税抜+税額と一致していれば true
+   - 『税抜』『外税』『別途消費税』などの表記があれば false
+3. インボイス制度の登録番号(registrationNumber)があれば抽出してください。
+4. 振込先銀行口座情報(bankAccount)も可能な限り抽出してください。
+5. 明細行(lineItems)は個別に抽出してください。
+6. 合計金額(totalAmount)、税抜金額(subtotalAmount)、消費税額(taxAmount)をそれぞれ抽出してください。`,
     };
     const response = await ai.models.generateContent({
       model: invoiceOcrModel,
@@ -2102,5 +2111,45 @@ export const calculateEstimation = async (spec: PrintSpec): Promise<EstimationRe
         comparisonWithPast: { averagePrice: 0, differencePercentage: 0 }
       };
     }
+  });
+};
+
+/**
+ * 経費データをAIで分析し、傾向・異常・改善提案を生成
+ */
+export const analyzeExpenseData = async (summary: {
+  totalAmount: number;
+  lineCount: number;
+  accountCount: number;
+  topAccounts: { name: string; amount: number }[];
+  topSuppliers: { name: string; amount: number }[];
+  monthlyTrend: { month: string; amount: number }[];
+}): Promise<string> => {
+  const ai = checkOnlineAndAIOff();
+  return withRetry(async () => {
+    const prompt = `あなたは経理・財務の専門コンサルタントです。以下の経費データを分析し、経営者に向けた簡潔なコメントを3〜5項目で生成してください。
+
+## 経費データサマリー
+- 総経費額: ¥${summary.totalAmount.toLocaleString()}
+- 明細件数: ${summary.lineCount}件
+- 勘定科目数: ${summary.accountCount}科目
+
+## 勘定科目別TOP5
+${summary.topAccounts.map((a, i) => `${i + 1}. ${a.name}: ¥${a.amount.toLocaleString()}`).join('\n')}
+
+## 仕入先別TOP5
+${summary.topSuppliers.map((s, i) => `${i + 1}. ${s.name}: ¥${s.amount.toLocaleString()}`).join('\n')}
+
+## 月別推移
+${summary.monthlyTrend.map(m => `${m.month}: ¥${m.amount.toLocaleString()}`).join('\n')}
+
+## 出力形式
+- 各コメントは1行で簡潔に
+- 傾向分析、コスト削減提案、異常値の指摘などを含める
+- 具体的な数値を引用して根拠を示す
+- 日本語で出力`;
+
+    const response = await ai.models.generateContent({ model, contents: prompt });
+    return response.text;
   });
 };

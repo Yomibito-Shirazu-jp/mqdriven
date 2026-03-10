@@ -237,8 +237,8 @@ const SalesRanking: React.FC<SalesRankingProps> = ({ initialSummaries, customers
                 <StatCard title="対象クライアント数" value={customerData.length.toString()} icon={<Trophy className="w-6 h-6 text-amber-500" />} />
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm overflow-hidden">
-                <div className="p-6 space-y-4">
+            <div className="overflow-hidden">
+                <div className="py-4 space-y-4">
                     <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
@@ -275,15 +275,15 @@ const SalesRanking: React.FC<SalesRankingProps> = ({ initialSummaries, customers
                     <p className="text-xs text-slate-500 dark:text-slate-400">※ 受注件数 = 選択期間内の orders 件数（キャンセル除外）。</p>
                 </div>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-base text-left text-slate-500 dark:text-slate-400">
-                        <thead className="text-sm text-slate-700 uppercase bg-slate-50 dark:bg-slate-700 dark:text-slate-300">
+                    <table className="w-full text-sm text-left text-slate-600 dark:text-slate-400">
+                        <thead className="text-sm font-medium text-slate-700 dark:text-slate-300 border-b-2 border-slate-200 dark:border-slate-700">
                             <tr>
-                                <th scope="col" className="px-6 py-3 w-16 text-center">順位</th>
-                                <th scope="col" className="px-6 py-3">クライアント名</th>
-                                <th scope="col" className="px-6 py-3 text-center w-20">ランク</th>
-                                <th scope="col" className="px-6 py-3 text-right">受注件数</th>
-                                <th scope="col" className="px-6 py-3 text-right">売上高 (P)</th>
-                                <th scope="col" className="px-6 py-3 text-right">限界利益 (M)</th>
+                                <th scope="col" className="px-6 py-4 w-16 text-center">順位</th>
+                                <th scope="col" className="px-6 py-4">クライアント名</th>
+                                <th scope="col" className="px-6 py-4 text-center w-20">ランク</th>
+                                <th scope="col" className="px-6 py-4 text-right">受注件数</th>
+                                <th scope="col" className="px-6 py-4 text-right">売上高 (P)</th>
+                                <th scope="col" className="px-6 py-4 text-right">限界利益 (M)</th>
                             </tr>
                         </thead>
                         <tbody>

@@ -40,6 +40,13 @@ export type Page =
   | 'simple_estimates'
   | 'print_estimate_app'
   | 'strac_analysis'
+  | 'business_forms_hub'
+  | 'business_order'
+  | 'business_production'
+  | 'business_delivery'
+  | 'detailed_estimate'
+  | 'customer_dashboard'
+  | 'turnaround_plan'
   | 'new_ai_estimate'; // Adding new page type
 
 // Allow loose typing for legacy camelCase usage across the app.
@@ -330,6 +337,20 @@ export interface Estimate extends LooseRecord {
   valid_until?: string;
   version?: number;
   userId?: string;
+  // Computed / alias fields used by views & forms
+  salesAmount?: number | null;
+  grandTotal?: number | null;
+  deliveryDate?: string | null;
+  deliveryMethod?: string | null;
+  paymentTerms?: string | null;
+  deliveryTerms?: string | null;
+  taxRate?: number | null;
+  profitMarginTarget?: number | null;
+  mqMissingReason?: string | null;
+  estimate_code?: string | null;
+  estimate_title?: string | null;
+  customer_name?: string | null;
+  order_flg?: string | null;
 }
 
 export interface EstimateItem extends LooseRecord {
@@ -492,6 +513,9 @@ export interface AccountItem extends LooseRecord {
   updated_at?: string;
 }
 
+export type MasterAccountItem = AccountItem;
+
+
 export interface PurchaseOrder extends LooseRecord {
   id: string;
   order_number?: string;
@@ -554,12 +578,24 @@ export interface PaymentRecipient extends LooseRecord {
   updated_at?: string;
 }
 
-export interface MasterAccountItem extends LooseRecord {
+export interface FixedCost extends LooseRecord {
   id: string;
-  code: string;
+  category: string;
+  description: string;
+  monthly_amount: number;
+  start_date?: string;
+  end_date?: string;
+  recipient_id?: string;
+  created_at?: string;
+}
+
+export interface Machine extends LooseRecord {
+  id: string;
   name: string;
-  category?: string;
-  description?: string;
+  manufacturer?: string;
+  model_number?: string;
+  standard_speed?: number;
+  is_active?: boolean;
   created_at?: string;
   updated_at?: string;
 }

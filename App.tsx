@@ -1,6 +1,152 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { 
+  Layers,
+  Search,
+  BookOpen,
+  Calendar,
+  ClipboardList,
+  ChevronDown,
+  History,
+  TrendingUp,
+  FileText,
+  Calculator,
+  Plus,
+  ArrowLeft,
+  Shield,
+  MessageSquare,
+  Lock,
+  MessageCircle,
+  Clock,
+  Layout,
+  Star,
+  Users,
+  Grid,
+  CheckCircle,
+  Database,
+  Printer,
+  FileSearch,
+  LogOut,
+  Mail,
+  Zap,
+  Globe,
+  Bell,
+  Home,
+  MapPin,
+  Filter,
+  Trash2,
+  Edit2,
+  Building,
+  CreditCard,
+  Target,
+  BarChart3,
+  PieChart,
+  Activity,
+  Archive,
+  StarOff,
+  UserPlus,
+  LogIn,
+  Check,
+  X,
+  HelpCircle,
+  Info,
+  ExternalLink,
+  ChevronRight,
+  MoreVertical,
+  MinusCircle,
+  Image,
+  Upload,
+  Download,
+  Share2,
+  Save,
+  Trash,
+  Send,
+  Link,
+  Phone,
+  Paperclip,
+  Eye,
+  EyeOff,
+  Video,
+  Mic,
+  Headphones,
+  Music,
+  Tv,
+  Camera,
+  Heart,
+  ShoppingCart,
+  Package,
+  Truck,
+  Box,
+  Cpu,
+  Smartphone,
+  Laptop,
+  Monitor,
+  HardDrive,
+  MousePointer2,
+  Folder,
+  FolderOpen,
+  MailOpen,
+  Inbox,
+  SendHorizontal,
+  Move,
+  Maximize2,
+  Minimize2,
+  Hash,
+  AtSign,
+  Briefcase
+} from 'lucide-react';
+import { 
+  Page, 
+  Job, 
+  JobCreationPayload,
+  Customer, 
+  Application, 
+  ApplicationWithDetails,
+  AccountItem, 
+  InventoryItem, 
+  PurchaseOrder, 
+  Lead,
+  Department,
+  AllocationDivision,
+  PaymentRecipient,
+  JournalEntry,
+  ApprovalRoute,
+  Employee,
+  Toast,
+  ConfirmationDialogProps,
+  BugReport,
+  Estimate,
+  Invoice,
+  EmployeeUser,
+  MasterAccountItem,
+  Title,
+  ProjectBudgetSummary,
+  DailyReportPrefill,
+  Project,
+  CompanyAnalysis,
+  AccountingStatus,
+  FixedCost
+} from './types';
+import { 
+  getJobs, 
+  getCustomers, 
+  saveEstimate, 
+  updateJob, 
+  getApplications, 
+  updateApplication, 
+  getAccountItems, 
+  getDepartments,
+  getAllocationDivisions,
+  getJournalEntries,
+  getPaymentRecipients,
+  createPaymentRecipient,
+  getFixedCosts,
+  saveFixedCost,
+  deleteFixedCost
+} from './services/dataService';
+import { formatCurrency, formatJPY } from './utils';
+
 import Header from './components/Header';
-import Sidebar from './components/Sidebar';
+import Sidebar, { AccountingBadgeCounts } from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import JobList from './components/JobList';
 import CreateJobModal from './components/CreateJobModal';
@@ -11,18 +157,14 @@ import BusinessCardOCR from './components/BusinessCardOCR';
 import { CompanyAnalysisModal } from './components/CompanyAnalysisModal';
 import LeadManagementPage from './components/sales/LeadManagementPage';
 import CreateLeadModal from './components/sales/CreateLeadModal';
-import FaxOcrIntakePage from './components/sales/FaxOcrIntakePage';
 import PlaceholderPage from './components/PlaceholderPage';
 import MySchedulePage from './components/MySchedulePage';
 import UserManagementPage from './components/admin/UserManagementPage';
 import ApprovalRouteManagementPage from './components/admin/ApprovalRouteManagementPage';
 import BugReportChatModal from './components/BugReportChatModal';
-import SettingsPage from './components/SettingsPage';
 import UpdateModal from './components/UpdateModal';
 import EmailNotificationSettingsPage from './components/EmailNotificationSettingsPage';
 import AccountingPage from './components/Accounting';
-import SalesPipelinePage from './components/sales/SalesPipelinePage';
-import ProjectManagementPage from './components/projects/ProjectManagementPage';
 import InventoryManagementPage from './components/inventory/InventoryManagementPage';
 import CreateInventoryItemModal from './components/inventory/CreateInventoryItemModal';
 import ManufacturingPipelinePage from './components/manufacturing/ManufacturingPipelinePage';
@@ -34,7 +176,13 @@ import SalesRanking from './components/accounting/SalesRanking';
 import AccountingBusinessPlanPage from './components/accounting/BusinessPlanPage';
 import ApprovalWorkflowPage from './components/accounting/ApprovalWorkflowPage';
 import AccountingDashboard from './src/components/accounting/Dashboard';
-import { JournalReviewPage } from './src/components/accounting/JournalEntry';
+import JournalReviewPage from './components/accounting/JournalReviewPage';
+import BusinessFormsHub from './components/forms/BusinessFormsHub';
+import OrderForm from './components/forms/OrderForm';
+import ProductionOrderForm from './components/forms/ProductionOrderForm';
+import DeliverySlipForm from './components/forms/DeliverySlipForm';
+import DetailedEstimateForm from './components/estimate/DetailedEstimateForm';
+import CustomerDashboard from './components/CustomerDashboard';
 import { ApprovedApplications } from './src/components/accounting/ApprovedApplications';
 import UnhandledItemsPage from './src/components/accounting/UnhandledItemsPage';
 import GeneralLedger from './components/accounting/GeneralLedger';
@@ -64,6 +212,7 @@ import AuditLogPage from './components/admin/AuditLogPage';
 import JournalQueuePage from './components/admin/JournalQueuePage';
 import MasterManagementPage from './components/admin/MasterManagementPage';
 import ActionConsolePage from './components/admin/ActionConsolePage';
+import TurnaroundPlanPage from './components/TurnaroundPlanPage';
 import KnowledgeBasePage from './components/KnowledgeBasePage';
 import DatabaseSetupInstructionsModal from './components/DatabaseSetupInstructionsModal';
 import NewsletterPage from './components/NewsletterPage';
@@ -75,16 +224,19 @@ import PromptManagementPage from './components/PromptManagementPage';
 import PageShell from './components/ui/PageShell';
 import DailyReportProgressPage from './components/DailyReportProgressPage';
 import AIEstimateCreation from './components/estimate/AIEstimateCreation';
+import FaxOcrIntakePage from './components/sales/FaxOcrIntakePage';
+import SalesPipelinePage from './components/sales/SalesPipelinePage';
+import ProjectManagementPage from './components/projects/ProjectManagementPage';
+import SettingsPage from './components/SettingsPage';
 
 import * as dataService from './services/dataService';
 import * as geminiService from './services/geminiService';
 import { getSupabase, getSupabaseFunctionHeaders, hasSupabaseCredentials } from './services/supabaseClient';
 import type { Session, User as SupabaseAuthUser } from '@supabase/supabase-js';
-
-import { Page, Job, JobCreationPayload, Customer, JournalEntry, User, AccountItem, Lead, ApprovalRoute, PurchaseOrder, InventoryItem, Employee, Toast, ConfirmationDialogProps, BugReport, Estimate, ApplicationWithDetails, Invoice, EmployeeUser, Department, PaymentRecipient, MasterAccountItem, AllocationDivision, Title, ProjectBudgetSummary, DailyReportPrefill, Project, CompanyAnalysis, AccountingStatus } from './types';
-import type { AccountingBadgeCounts } from './components/Sidebar';
 import { PlusCircle, Loader, AlertTriangle, RefreshCw, Settings, Menu } from './components/Icons';
 import { IS_AI_DISABLED as ENV_SHIM_AI_OFF } from './src/envShim';
+
+
 
 
 const getAllowedGoogleOrigins = (): string[] => {
@@ -148,84 +300,90 @@ type PredictiveSuggestion = {
 
 const PAGE_TITLES: Record<Page, string> = {
     analysis_dashboard: '分析ダッシュボード',
-    my_schedule: '日報タスクカレンダー',
     sales_dashboard: '販売ダッシュボード',
     sales_leads: 'リード管理',
     sales_customers: '取引先',
     sales_customers_chart: '顧客/お客様カルテ',
+    customer_dashboard: '顧客ダッシュボード',
     sales_pipeline: 'パイプライン',
     sales_estimates: '見積管理',
     quote_center: '見積作成センター',
     sales_orders: '受発注管理',
     project_management: 'プロジェクト管理',
     sales_billing: '請求管理',
-    fax_ocr_intake: 'FAX取込',
-    analysis_ranking: '売上ランキング',
-    purchasing_orders: '購買発注',
-    purchasing_invoices: '仕入請求(AP)',
+    analysis_ranking: 'ランキング分析',
+    purchasing_orders: '発注管理',
+    purchasing_invoices: '請求書インポート',
     purchasing_payments: '支払管理',
     inventory_management: '在庫管理',
     manufacturing_orders: '製造指図',
     manufacturing_progress: '製造進捗',
     manufacturing_cost: '製造原価',
-    simple_estimates: 'AI見積もり作成',
-    print_estimate_app: '基幹見積システム',
     hr_attendance: '勤怠',
     hr_man_hours: '工数',
-    hr_labor_cost: '人件費',
-    approval_list: '承認一覧',
-    approval_form_expense: '経費申請',
-    approval_form_transport: '交通費申請',
+    hr_labor_cost: '労務費',
+    approval_list: '承認ワークフロー',
+    approval_form_expense: '経費精算',
+    approval_form_transport: '交通費精算',
     approval_form_leave: '休暇申請',
     approval_form_approval: '稟議申請',
-    approval_form_daily: '日報',
-    daily_report_progress: '日報提出進捗',
-    accounting_journal: '仕訳',
+    approval_form_daily: '日報申請',
+    daily_report_progress: '提出状況',
+    accounting_journal: '仕訳帳',
     accounting_general_ledger: '総勘定元帳',
-    accounting_trial_balance: '試算表',
+    accounting_trial_balance: '合計残高試算表',
     accounting_profit_loss: '損益計算書',
     accounting_balance_sheet: '貸借対照表',
     accounting_tax_summary: '消費税集計',
-    accounting_period_closing: '月次締め',
+    accounting_period_closing: '決算処理',
     accounting_business_plan: '経営計画',
-    accounting_dashboard: '会計ダッシュボード',
+    ai_business_consultant: 'AI相談',
+    ai_market_research: '市場調査AI',
+    ai_transcription: '音声文字起こしAI',
+    admin_audit_log: '監査ログ',
+    admin_journal_queue: '仕訳キュー',
+    admin_user_management: 'ユーザー管理',
+    admin_route_management: 'ルート管理',
+    admin_master_management: 'マスター管理',
+    admin_bug_reports: 'バグレポート',
+    admin_action_console: 'アクションコンソール',
+    settings: '設定',
+    bulletin_board: '掲示板',
+    knowledge_base: 'ナレッジベース',
+    meeting_minutes: '議事録',
+    my_schedule: 'マイスケジュール',
+    fax_ocr_intake: 'FAX注文OCR',
+    accounting_dashboard: '経理ダッシュボード',
     accounting_journal_review: '仕訳レビュー',
     accounting_payables: '買掛管理',
     accounting_receivables: '売掛管理',
     accounting_cash_schedule: '資金繰り',
     accounting_expense_analysis: '経費分析',
     accounting_approved_applications: '承認済み申請',
-    accounting_approved_unhandled: '未処理',
-    accounting_approved_expense: '経費',
-    accounting_approved_transport: '交通費',
-    accounting_approved_leave: '休暇',
-    accounting_approved_apl: '稟議',
-    accounting_approved_dly: '日報',
-    document_creation_tools: 'ドキュメント作成',
+    accounting_approved_unhandled: '未処理案件',
+    accounting_approved_expense: '承認経費',
+    accounting_approved_transport: '承認交通費',
+    accounting_approved_leave: '承認休暇',
+    accounting_approved_apl: '承認稟議',
+    accounting_approved_dly: '承認日報',
+    document_creation_tools: '文書作成ツール',
     proposal_ai: '提案書AI',
-    pdf_editing_tools: 'PDF編集AI',
-    dtp_tools: 'DTP支援AI',
-    ai_business_consultant: 'AI業務相談',
-    ai_market_research: 'AI市場調査',
-    ai_transcription: '議事録AI文字起こし',
-    meeting_minutes: '議事録',
-    admin_audit_log: '監査ログ',
-    admin_journal_queue: '仕訳キュー',
-    admin_user_management: 'ユーザー管理',
-    admin_route_management: '承認ルート管理',
-    admin_master_management: 'マスター管理',
-    admin_action_console: 'アクションコンソール',
-    admin_bug_reports: 'バグ報告',
-    bulletin_board: '掲示板',
-    knowledge_base: 'ナレッジベース',
-    settings: '設定',
+    pdf_editing_tools: 'PDF編集',
+    dtp_tools: 'DTPツール',
     prompt_management: 'プロンプト管理',
     newsletter: 'ニュースレター',
     email_auto_reply: 'メール自動返信',
+    simple_estimates: '簡易見積',
+    print_estimate_app: '印刷見積アプリ',
     strac_analysis: 'STRAC分析',
-    new_ai_estimate: '新規AI見積もり',
+    business_forms_hub: '業務プロセス管理',
+    business_order: '受注入力',
+    business_production: '製造指示入力',
+    business_delivery: '納品入力',
+    detailed_estimate: '戦略見積作成',
+    new_ai_estimate: '生成AI見積',
+    turnaround_plan: '起死回生プラン',
 };
-
 const APPLICATION_FORM_PAGE_MAP: Partial<Record<string, Page>> = {
     EXP: 'approval_form_expense',
     TRP: 'approval_form_transport',
@@ -322,6 +480,8 @@ const App: React.FC = () => {
     const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [estimates, setEstimates] = useState<Estimate[]>([]);
+    const [fixedCosts, setFixedCosts] = useState<FixedCost[]>([]);
+
 
     // デバッグ用：estimatesの状態を監視
     useEffect(() => {
@@ -766,6 +926,8 @@ const App: React.FC = () => {
         setInventoryItems([]);
         setEmployees([]);
         setEstimates([]);
+        setFixedCosts([]);
+
         setApplications([]);
         setResumedApplication(null);
         setDepartments([]);
@@ -877,7 +1039,7 @@ const App: React.FC = () => {
             if (signal.aborted) return;
             setAllUsers(usersData);
 
-            let effectiveUser: User | null = currentUser ?? null;
+            let effectiveUser: EmployeeUser | null = currentUser ?? null;
             if (!effectiveUser && supabaseUser) {
                 effectiveUser = usersData.find(user => user.id === supabaseUser.id) ?? null;
                 if (!effectiveUser && supabaseUser.email) {
@@ -917,6 +1079,7 @@ const App: React.FC = () => {
                 dataService.getAllocationDivisions(),
                 dataService.getTitles(),
                 dataService.getEstimatesPage(targetEstimatesPage, ESTIMATE_PAGE_SIZE),
+                dataService.getFixedCosts(),
             ]);
 
             if (signal.aborted) return;
@@ -936,6 +1099,7 @@ const App: React.FC = () => {
                 allocationDivisionsResult,
                 titlesResult,
                 estimatesResult,
+                fixedCostsResult,
             ] = results;
 
             const sortCustomersDesc = (items: Customer[]) =>
@@ -972,6 +1136,8 @@ const App: React.FC = () => {
             if (paymentRecipientsResult.status === 'fulfilled') setPaymentRecipients(paymentRecipientsResult.value); else console.error('Failed to load payment recipients:', paymentRecipientsResult.reason);
             if (allocationDivisionsResult.status === 'fulfilled') setAllocationDivisions(allocationDivisionsResult.value); else console.error('Failed to load allocation divisions:', allocationDivisionsResult.reason);
             if (titlesResult.status === 'fulfilled') setTitles(titlesResult.value); else console.error('Failed to load titles:', titlesResult.reason);
+            if (fixedCostsResult.status === 'fulfilled') setFixedCosts(fixedCostsResult.value); else console.error('Failed to load fixed costs:', fixedCostsResult.reason);
+
 
             if (effectiveUser) {
                 const applicationsData = await dataService.getApplications(effectiveUser);
@@ -1282,11 +1448,10 @@ const App: React.FC = () => {
                 return <CustomerList
                     customers={filteredCustomersList}
                     searchTerm={searchTerm}
+                    isChartMode={isChartMode}
                     onSelectCustomer={(customer) => {
-                        setCustomerInitialValues(null);
                         setSelectedCustomer(customer);
-                        setCustomerModalMode('view');
-                        setCustomerDetailModalOpen(true);
+                        handleNavigate('customer_dashboard');
                     }}
                     onUpdateCustomer={handleUpdateCustomer}
                     onAnalyzeCustomer={handleAnalyzeCustomer}
@@ -1336,6 +1501,7 @@ const App: React.FC = () => {
                     allocationDivisions={allocationDivisions}
                     departments={departments}
                     titles={titles}
+                    fixedCosts={fixedCosts}
                     onSaveAccountItem={async (item: Partial<AccountItem>) => { await dataService.saveAccountItem(item); await loadAllData(); addToast('勘定科目を保存しました。', 'success'); }}
                     onDeleteAccountItem={async (id: string) => { await dataService.deactivateAccountItem(id); await loadAllData(); addToast('勘定科目を無効化しました。', 'success'); }}
                     onSavePaymentRecipient={async (item: Partial<PaymentRecipient>) => { await dataService.savePaymentRecipient(item); await loadAllData(); addToast('支払先を保存しました。', 'success'); }}
@@ -1346,6 +1512,8 @@ const App: React.FC = () => {
                     onDeleteDepartment={async (id: string) => { await dataService.deleteDepartment(id); await loadAllData(); addToast('部署を削除しました。', 'success'); }}
                     onSaveTitle={async (item: Partial<Title>) => { await dataService.saveTitle(item); await loadAllData(); addToast('役職を保存しました。', 'success'); }}
                     onDeleteTitle={async (id: string) => { await dataService.deleteTitle(id); await loadAllData(); addToast('役職を削除しました。', 'success'); }}
+                    onSaveFixedCost={async (item: Partial<FixedCost>) => { await dataService.saveFixedCost(item); await loadAllData(); addToast('固定費設定を保存しました。', 'success'); }}
+                    onDeleteFixedCost={async (id: string) => { await dataService.deleteFixedCost(id); await loadAllData(); addToast('固定費設定を削除しました。', 'success'); }}
                     addToast={addToast}
                     requestConfirmation={requestConfirmation}
                 />;
@@ -1391,6 +1559,16 @@ const App: React.FC = () => {
                     currentUser={currentUser}
                     searchTerm={searchTerm}
                     isAIOff={isAIOff}
+                    onNavigate={handleNavigate}
+                />;
+            case 'detailed_estimate':
+                return <DetailedEstimateForm
+                    onBack={() => handleNavigate('sales_estimates')}
+                    onSaveSuccess={() => {
+                        addToast('見積を保存しました', 'success');
+                        handleNavigate('sales_estimates');
+                    }}
+                    addToast={addToast}
                 />;
             case 'analysis_ranking':
                 return <SalesRanking initialSummaries={jobs || []} customers={customers || []} />;
@@ -1409,7 +1587,7 @@ const App: React.FC = () => {
             case 'accounting_dashboard':
                 return <AccountingDashboard setCurrentView={handleNavigate} />;
             case 'accounting_journal_review':
-                return <JournalReviewPage notify={addToast} />;
+                return <JournalReviewPage notify={addToast} onNavigate={handleNavigate} />;
             case 'accounting_general_ledger':
                 return <GeneralLedger />;
             case 'accounting_payables':
@@ -1447,19 +1625,31 @@ const App: React.FC = () => {
             case 'approval_form_leave': return <ApprovalWorkflowPage currentUser={currentUser} view="form" formCode="LEV" addToast={addToast} isAIOff={isAIOff} resumedApplication={resumedApplication} onResumeDraftClear={clearResumedApplication} />;
             case 'approval_form_approval': return <ApprovalWorkflowPage currentUser={currentUser} view="form" formCode="APL" addToast={addToast} isAIOff={isAIOff} resumedApplication={resumedApplication} onResumeDraftClear={clearResumedApplication} />;
             case 'approval_form_daily':
+                return <ApprovalWorkflowPage currentUser={currentUser} view="form" formCode="DLY" addToast={addToast} isAIOff={isAIOff} resumedApplication={resumedApplication} onResumeDraftClear={clearResumedApplication} customers={customers} />;
+            case 'business_forms_hub':
+                return <BusinessFormsHub onNavigate={handleNavigate} />;
+            case 'business_order':
+                return <OrderForm onBack={() => handleNavigate('business_forms_hub')} />;
+            case 'business_production':
+                return <ProductionOrderForm onBack={() => handleNavigate('business_forms_hub')} />;
+            case 'business_delivery':
+                return <DeliverySlipForm onBack={() => handleNavigate('business_forms_hub')} />;
+            case 'detailed_estimate':
                 return (
-                    <ApprovalWorkflowPage
-                        currentUser={currentUser}
-                        view="form"
-                        formCode="DLY"
-                        addToast={addToast}
-                        isAIOff={isAIOff}
-                        resumedApplication={resumedApplication}
-                        onResumeDraftClear={clearResumedApplication}
-                        dailyReportPrefill={dailyReportPrefill}
-                        onDailyReportPrefillApplied={handleDailyReportPrefillApplied}
+                    <DetailedEstimateForm
+                        onBack={() => handleNavigate('business_forms_hub')}
+                        onSaveSuccess={() => {
+                            handleNavigate('business_forms_hub');
+                        }}
                     />
                 );
+            case 'customer_dashboard':
+                return selectedCustomer ? (
+                    <CustomerDashboard
+                        customer={selectedCustomer}
+                        onBack={() => handleNavigate('sales_customers')}
+                    />
+                ) : null;
             case 'daily_report_progress':
                 return <DailyReportProgressPage currentUser={currentUser} addToast={addToast} />;
             case 'proposal_ai':
@@ -1566,6 +1756,8 @@ const App: React.FC = () => {
             case 'admin_action_console':
                 // @ts-ignore - TODO: Add 'admin_action_console' to Page type if needed
                 return <ActionConsolePage />;
+            case 'turnaround_plan':
+                return <TurnaroundPlanPage />;
             default:
                 return <PlaceholderPage title={PAGE_TITLES[currentPage] || currentPage} />;
         }
@@ -1674,10 +1866,21 @@ const App: React.FC = () => {
                         <div className="w-8"></div>
                     </div>
                 </div>
-                <div className={`flex-1 overflow-y-auto pt-20 sm:pt-6 p-6 bg-slate-100 dark:bg-slate-900 transition-opacity duration-150 ${isLoading && !dbError ? 'opacity-50 pointer-events-none' : ''}`}>
+                <button
+                  onClick={() => handleNavigate('business_forms_hub')}
+                  className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-bold transition-all ${
+                    currentPage === 'business_forms_hub'
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                  }`}
+                >
+                  <Briefcase className="w-5 h-5" />
+                  業務プロセス管理
+                </button>
+                <div className={`flex-1 overflow-y-auto pt-20 sm:pt-0 bg-white dark:bg-slate-900 transition-opacity duration-150 ${isLoading && !dbError ? 'opacity-50 pointer-events-none' : ''}`}>
                     <Header {...headerConfig} />
-                    <div className="mt-6">
-                        <PageShell>
+                    <div>
+                        <PageShell padding="none">
                             {renderContent()}
                         </PageShell>
                     </div>

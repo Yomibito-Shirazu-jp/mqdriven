@@ -103,3 +103,21 @@ export const calculateMQProfit = (app: ApplicationWithDetails): MQProfitResult |
 
   return null;
 };
+
+export const calculateEstimateMQ = (estimate: any): MQProfitResult | null => {
+  const sales = Number(estimate.subtotal || estimate.total || 0);
+  const variable = Number(estimate.valiable_cost || estimate.variable_cost_amount || 0);
+  const mq = sales - variable;
+  const rate = sales > 0 ? mq / sales : 0;
+
+  if (sales === 0 && variable === 0) return null;
+
+  return {
+    salesAmount: sales,
+    variableCost: variable,
+    marginalProfit: mq,
+    profitRate: rate,
+    isAutoApprovable: rate >= PROFIT_THRESHOLD,
+    source: 'formData',
+  };
+};

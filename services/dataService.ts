@@ -58,6 +58,8 @@ import {
     GeneralLedgerEntry,
     CustomerBudgetSummary,
     AnalysisHistory,
+    FixedCost,
+    Machine,
 } from '../types';
 import type { CalendarEvent } from '../types';
 
@@ -3503,30 +3505,23 @@ export const getGeneralLedger = async (accountId: string, dateRange: { start: st
     });
 
     // RPC関数が利用できない場合のフォールバック
-    if (error && (error.code === 'PGRST116' || error.code === '400')) {
+    if (error && (error.code === 'PGRST116' || error.code === 'PGRST202')) {
         console.warn('RPC get_general_ledger not available, using fallback');
-        return []; // 代替データを返す
+        return [];
     }
 
     ensureSupabaseSuccess(error, 'Failed to fetch general ledger');
 
-    // 繧ｬ繝ｼ繝峨Ξ繝ｼ繝ｫ・嗔osted莉戊ｨｳ縺ｮ縺ｿ繧定ｨｱ蜿ｯ
-    const postedData = (data || []).filter(entry =>
-        entry.status === 'posted' &&
-        entry.accounting_status === 'posted'
-    );
-
-    return postedData.map(row => ({
-        id: row.id,
-        date: row.date,
-        voucherNo: row.voucher_no,
+    return (data || []).map((row: any) => ({
+        id: row.entry_date + '_' + row.account_code,
+        date: row.entry_date,
         description: row.description,
-        partner: row.partner,
-        debit: row.debit,
-        credit: row.credit,
-        balance: row.balance,
-        // The 'type' is for UI display only and can be derived on the client
-        type: row.debit > 0 ? '借方' : (row.credit > 0 ? '貸方' : 'その他'),
+        debit: Number(row.debit_amount ?? 0),
+        credit: Number(row.credit_amount ?? 0),
+        balance: Number(row.balance ?? 0),
+        accountCode: row.account_code,
+        accountName: row.account_name,
+        type: Number(row.debit_amount ?? 0) > 0 ? '借方' : (Number(row.credit_amount ?? 0) > 0 ? '貸方' : 'その他'),
     }));
 };
 
@@ -3950,21 +3945,17 @@ const buildEstimatePayload = (estimateData: Partial<Estimate>, mode: 'insert' | 
 export const getEstimates = async (): Promise<Estimate[]> => {
     const supabase = getSupabase();
 
-    // 蠑ｷ蛻ｶJOIN: estimates竊恥rojects竊団ustomers
+    // Use estimates_list_view which correctly JOINs estimates -> projects -> customers
     const { data, error } = await supabase
-        .from('estimates')
-        .select(`
-            *,
-            project:projects(id, project_code, project_name, customer_id, customer_code),
-            customer:customers!inner(id, customer_name, customer_code)
-        `)
-        .order('create_date', { ascending: false })
+        .from('estimates_list_view')
+        .select('*')
+        .order('created_at', { ascending: false })
         .limit(200);
 
     if (error) {
-        console.warn('Direct JOIN failed, trying fallback:', error);
+        console.warn('estimates_list_view failed, trying fallback:', error);
 
-        // Fallback: fetch estimates without joins.
+        // Fallback: fetch estimates + projects + customers separately
         const { data: estimates, error: estimatesError } = await supabase
             .from('estimates')
             .select('*')
@@ -3974,12 +3965,10 @@ export const getEstimates = async (): Promise<Estimate[]> => {
         if (estimatesError) throw estimatesError;
         if (!estimates || estimates.length === 0) return [];
 
-        // Fetch projects for lookup.
         const { data: projects } = await supabase
             .from('projects')
             .select('id, project_code, project_name, customer_id, customer_code');
 
-        // Fetch customers for lookup.
         const { data: customers } = await supabase
             .from('customers')
             .select('id, customer_name, customer_code');
@@ -4010,12 +3999,7 @@ export const getEstimates = async (): Promise<Estimate[]> => {
         });
     }
 
-    // Map JOIN results.
-    return (data || []).map(row => ({
-        ...row,
-        project_name: row.project?.project_name,
-        customer_name: row.customer?.customer_name || '未設定',
-    }));
+    return (data || []).map(mapEstimateRow);
 };
 
 export const getEstimatesPage = async (page: number, pageSize: number): Promise<{ rows: Estimate[]; totalCount: number; }> => {
@@ -4062,8 +4046,8 @@ export const getEstimatesPage = async (page: number, pageSize: number): Promise<
         }
     }
 
-    // データをマッピング
-    const estimates = data.map(estimate => ({
+    // データをマッピング（mapEstimateRowを通してフロントエンド用フィールドを設定）
+    const estimates = data.map(estimate => mapEstimateRow({
         ...estimate,
         customer_name: estimate.customer_name || customerMap[estimate.customer_id]?.customer_name || '未設定',
     }));
@@ -4073,95 +4057,6 @@ export const getEstimatesPage = async (page: number, pageSize: number): Promise<
         totalCount: count || 0,
     };
 
-    console.warn('estimates_list_view not available - please create the database view. Using fallback query. Error:', error);
-
-    const { data: fallbackRows, error: fallbackError, count: fallbackCount } = await supabase
-        .from('estimates')
-        .select(`
-            estimates_id,
-            pattern_no,
-            pattern_name,
-            specification,
-            copies,
-            unit_price,
-            tax_rate,
-            total,
-            subtotal,
-            consumption,
-            delivery_date,
-            expiration_date,
-            delivery_place,
-            transaction_method,
-            note,
-            status,
-            create_date,
-            update_date,
-            project_id
-        `, { count: 'exact' })
-        .order('create_date', { ascending: false })
-        .range(from, to);
-
-    if (fallbackError) {
-        console.error('Page query fallback error:', fallbackError);
-        throw fallbackError;
-    }
-
-    // Build project lookup by project_id / project_code / id.
-    let fallbackProjectMap: Record<string, any> = {};
-    {
-        const { data: projects, error: projectError } = await supabase
-            .from('projects')
-            .select('id, project_id, project_name, customer_id, customer_code, project_code');
-
-        if (projectError) {
-            console.error('プロジェクト検索エラー:', projectError);
-        } else {
-            fallbackProjectMap = (projects || []).reduce((acc, project) => {
-                const keys = [
-                    normalizeLookupKey(project.project_id),
-                    normalizeLookupKey(project.id),
-                    normalizeLookupKey(project.project_code),
-                ].filter(Boolean) as string[];
-                keys.forEach((k) => { if (k) acc[k] = project; });
-                return acc;
-            }, {} as Record<string, any>);
-        }
-    }
-
-    let fallbackCustomerMap: Record<string, any> = {};
-    {
-        const { data: customers, error: customerError } = await supabase
-            .from('customers')
-            .select('id, customer_name, customer_code');
-
-        if (customerError) {
-            console.error('顧客検索エラー:', customerError);
-        } else {
-            fallbackCustomerMap = (customers || []).reduce((acc, customer) => {
-                const keys = [
-                    normalizeLookupKey(customer.id),
-                    normalizeLookupKey(customer.customer_code),
-                ].filter(Boolean) as string[];
-                keys.forEach((k) => { if (k) acc[k] = customer; });
-                return acc;
-            }, {} as Record<string, any>);
-        }
-    }
-
-    const enrichedRows = (fallbackRows || []).map(row => {
-        const project = fallbackProjectMap[normalizeLookupKey(row.project_id) ?? ''];
-        const customer = project ? fallbackCustomerMap[normalizeLookupKey(project?.customer_id) ?? ''] : undefined;
-        return {
-            ...row,
-            project_name: project?.project_name ?? null,
-            customer_name: customer?.customer_name ?? null,
-        };
-    });
-
-    return {
-        rows: enrichedRows.map(mapEstimateRow),
-        totalCount: fallbackCount ?? 0,
-    };
 };
 
 export const getEstimateDetails = async (estimateId: string): Promise<EstimateDetail[]> => {
@@ -4211,6 +4106,57 @@ export const deleteEstimateDetail = async (detailId: string): Promise<void> => {
     const supabase = getSupabase();
     const { error } = await supabase.from('estimate_details').delete().eq('detail_id', detailId);
     ensureSupabaseSuccess(error, 'Failed to delete estimate detail');
+};
+
+export const saveDetailedEstimate = async (
+    estimate: Partial<Estimate>,
+    details: Partial<EstimateDetail>[]
+): Promise<string> => {
+    const supabase = getSupabase();
+    const isUpdate = !!estimate.id;
+    const mode = isUpdate ? 'update' : 'insert';
+    const payload = buildEstimatePayload(estimate, mode);
+    
+    // 1. Save estimate
+    const { data: estData, error: estError } = await supabase
+        .from('estimates')
+        .upsert(payload, { onConflict: 'estimates_id' })
+        .select('estimates_id')
+        .single();
+    
+    ensureSupabaseSuccess(estError, 'Failed to save estimate');
+    const estimateId = estData.estimates_id;
+
+    // 2. Delete existing details if updating - though for simplicity we always refresh if there's an ID
+    if (isUpdate) {
+        const { error: delError } = await supabase
+            .from('estimate_details')
+            .delete()
+            .eq('estimate_id', estimateId);
+        // It's okay if nothing was deleted
+    }
+
+    // 3. Insert new details
+    if (details.length > 0) {
+        const detailPayloads = details.map((d, index) => ({
+            estimate_id: estimateId,
+            item_name: d.itemName,
+            quantity: d.quantity,
+            unit_price: d.unitPrice,
+            amount: d.amount,
+            variable_cost: d.variableCost,
+            note: d.note,
+            // Add other fields if needed for the v2 schema compatibility
+        }));
+        
+        const { error: detailError } = await supabase
+            .from('estimate_details')
+            .insert(detailPayloads);
+        
+        ensureSupabaseSuccess(detailError, 'Failed to save estimate details');
+    }
+
+    return estimateId;
 };
 
 // --- Calendar (system) ---
@@ -4831,9 +4777,9 @@ export const getPayables = async (filters: { status?: string, startDate?: string
     });
 
     // RPC関数が利用できない場合のフォールバック
-    if (error && (error.code === 'PGRST116' || error.code === '400')) {
+    if (error && (error.code === 'PGRST116' || error.code === 'PGRST202')) {
         console.warn('RPC get_payables not available, using fallback');
-        return []; // 代替データを返す
+        return [];
     }
 
     ensureSupabaseSuccess(error, 'Failed to fetch payables');
@@ -4861,9 +4807,9 @@ export const getReceivables = async (filters: { status?: string, startDate?: str
     });
 
     // RPC関数が利用できない場合のフォールバック
-    if (error && (error.code === 'PGRST116' || error.code === '400')) {
+    if (error && (error.code === 'PGRST116' || error.code === 'PGRST202')) {
         console.warn('RPC get_receivables not available, using fallback');
-        return []; // 代替データを返す
+        return [];
     }
 
     ensureSupabaseSuccess(error, 'Failed to fetch receivables');
@@ -4880,6 +4826,80 @@ export const getReceivables = async (filters: { status?: string, startDate?: str
     }));
 };
 
+export const getFixedCosts = async (): Promise<FixedCost[]> => {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+        .from('fixed_costs')
+        .select('*')
+        .order('category');
+    
+    ensureSupabaseSuccess(error, 'Failed to fetch fixed costs');
+    return data || [];
+};
+
+export const saveFixedCost = async (item: Partial<FixedCost>): Promise<void> => {
+    const supabase = getSupabase();
+    let error;
+    if (item.id) {
+        ({ error } = await supabase.from('fixed_costs').update(item).eq('id', item.id));
+    } else {
+        ({ error } = await supabase.from('fixed_costs').insert(item));
+    }
+    ensureSupabaseSuccess(error, 'Failed to save fixed cost');
+};
+
+export const deleteFixedCost = async (id: string): Promise<void> => {
+    const supabase = getSupabase();
+    const { error } = await supabase.from('fixed_costs').delete().eq('id', id);
+    ensureSupabaseSuccess(error, 'Failed to delete fixed cost');
+};
+
+/**
+ * 指定された月の固定費支払データを一括生成する
+ * (すでに生成済みの場合は重複させない)
+ */
+export const generateMonthlyFixedCostPayables = async (period: string): Promise<number> => {
+    const supabase = getSupabase();
+    
+    // 1. 固定費マスタを取得
+    const fixedCosts = await getFixedCosts();
+    if (fixedCosts.length === 0) return 0;
+    
+    // 2. その月の末日を支払期日とする
+    const [year, month] = period.split('-').map(Number);
+    const lastDay = new Date(year, month, 0).getDate();
+    const dueDate = `${period}-${String(lastDay).padStart(2, '0')}`;
+    
+    // 3. すでに生成済みかチェック (descriptionに[F]と期間を含む前提)
+    const marker = `[F] ${period}`;
+    const { data: existing } = await supabase
+        .from('payables_v2')
+        .select('id')
+        .ilike('description', `%${marker}%`);
+        
+    if (existing && existing.length > 0) {
+        throw new Error(`${period}分の固定費はすでに生成されています。`);
+    }
+    
+    // 4. Payablesを生成
+    let count = 0;
+    for (const f of fixedCosts) {
+        const { error } = await supabase
+            .from('payables_v2')
+            .insert({
+                supplier_id: f.recipient_id || null,
+                description: `${marker} ${f.description}`,
+                amount: f.monthly_amount,
+                due_date: dueDate,
+                category: f.category,
+                status: 'outstanding'
+            });
+        if (!error) count++;
+    }
+    
+    return count;
+};
+
 export const getCashSchedule = async (period: { startDate: string; endDate: string }): Promise<CashScheduleData[]> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.rpc('get_cash_schedule', {
@@ -4888,9 +4908,9 @@ export const getCashSchedule = async (period: { startDate: string; endDate: stri
     });
 
     // RPC関数が利用できない場合のフォールバック
-    if (error && (error.code === 'PGRST116' || error.code === '400' || error.code === 'PGRST202')) {
+    if (error && (error.code === 'PGRST116' || error.code === 'PGRST202')) {
         console.warn('RPC get_cash_schedule not available, using fallback');
-        return []; // 代替データを返す
+        return [];
     }
 
     ensureSupabaseSuccess(error, 'Failed to fetch cash schedule');
@@ -5703,4 +5723,57 @@ export const fetchSalesDashboardMetrics = async (): Promise<SalesDashboardMetric
         orderTypeBreakdown,
         statusBreakdown,
     };
+};
+
+export const getCustomerSalesRankings = async (): Promise<any[]> => {
+    const supabase = getSupabase();
+    console.log('[dataService] getCustomerSalesRankings: fetching rankings');
+    const { data, error } = await supabase
+        .from('customer_sales_ranking')
+        .select('*')
+        .order('rank', { ascending: true });
+    
+    ensureSupabaseSuccess(error, 'Failed to fetch customer sales rankings');
+    return data || [];
+};
+
+export const getMachines = async (): Promise<Machine[]> => {
+    const supabase = getSupabase();
+    console.log('[dataService] getMachines: fetching machines');
+    const { data, error } = await supabase
+        .from('machines')
+        .select('*')
+        .order('name', { ascending: true });
+    
+    ensureSupabaseSuccess(error, 'Failed to fetch machines');
+    return data || [];
+};
+
+export const saveMachine = async (machine: Partial<Machine>): Promise<Machine> => {
+    const supabase = getSupabase();
+    console.log('[dataService] saveMachine: Saving machine data', machine);
+    
+    // Strip empty string for id to let UUID generation work
+    const { id, ...dataToSave } = machine;
+    const finalData = id ? { id, ...dataToSave } : dataToSave;
+
+    const { data, error } = await supabase
+        .from('machines')
+        .upsert(finalData)
+        .select()
+        .single();
+    
+    ensureSupabaseSuccess(error, 'Failed to save machine');
+    return data;
+};
+
+export const deleteMachine = async (id: string): Promise<void> => {
+    const supabase = getSupabase();
+    console.log(`[dataService] deleteMachine: Deleting machine with ID ${id}`);
+    const { error } = await supabase
+        .from('machines')
+        .delete()
+        .eq('id', id);
+        
+    ensureSupabaseSuccess(error, 'Failed to delete machine');
 };

@@ -152,35 +152,51 @@ const InboxItemCard: React.FC<{
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <div className="flex justify-between items-center mb-1">
-                                        <label htmlFor={`totalAmount-${item.id}`} className="text-sm font-medium text-slate-600 dark:text-slate-300">合計金額</label>
-                                        <div className="flex items-center">
-                                            <input id={`taxInclusive-${item.id}`} data-testid={`tax-inclusive-checkbox-${item.id}`} name="taxInclusive" type="checkbox" checked={localData.taxInclusive || false} onChange={handleChange} className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600" disabled={item.status === 'approved'} />
-                                            <label htmlFor={`taxInclusive-${item.id}`} className="ml-2 text-sm font-medium text-gray-900 dark:text-gray-300">税込</label>
-                                        </div>
+                                    <label htmlFor={`totalAmount-${item.id}`} className="text-sm font-medium text-slate-600 dark:text-slate-300">合計金額 (税込)</label>
+                                    <div className="relative">
+                                        <input id={`totalAmount-${item.id}`} name="totalAmount" type="number" value={localData.totalAmount} onChange={handleChange} placeholder="合計金額" className={inputClass} readOnly={item.status === 'approved'} />
                                     </div>
-                                    <input id={`totalAmount-${item.id}`} name="totalAmount" type="number" value={localData.totalAmount} onChange={handleChange} placeholder="合計金額" className={inputClass} readOnly={item.status === 'approved'} />
-                                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">※請求書が税込表示の場合はチェック、税抜表示の場合はチェックを外してください</p>
+                                    <div className="mt-2 flex items-center justify-between">
+                                        <span className="text-xs text-slate-500 dark:text-slate-400">計上設定:</span>
+                                        <label className="inline-flex items-center cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                name="taxInclusive" 
+                                                checked={localData.taxInclusive || false} 
+                                                onChange={handleChange} 
+                                                className="sr-only peer"
+                                                disabled={item.status === 'approved'}
+                                            />
+                                            <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                                            <span className="ms-3 text-xs font-medium text-gray-900 dark:text-gray-300">
+                                                {localData.taxInclusive ? '内税 (税込)' : '外税 (税抜)'}
+                                            </span>
+                                        </label>
+                                    </div>
                                 </div>
                                 <div>
-                                    <label htmlFor={`costType-${item.id}`} className="text-sm font-medium text-slate-600 dark:text-slate-300">費用の種類 (AI提案)</label>
-                                    <select id={`costType-${item.id}`} name="costType" value={localData.costType} onChange={handleChange} className={selectClass} disabled={item.status === 'approved'}>
-                                        <option value="V">変動費 (V)</option>
-                                        <option value="F">固定費 (F)</option>
-                                    </select>
+                                    <label htmlFor={`costType-${item.id}`} className="text-sm font-medium text-slate-600 dark:text-slate-300">勘定科目 (自動照合)</label>
+                                    <input id={`account-${item.id}`} name="account" type="text" value={localData.account || ''} onChange={handleChange} placeholder="勘定科目" className={inputClass} readOnly={item.status === 'approved'} />
+                                    <div className="mt-2 text-xs flex gap-2">
+                                        <span className={`px-2 py-0.5 rounded ${localData.costType === 'V' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                            {localData.costType === 'V' ? '変動費' : '固定費'}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                             <div>
-                                <label htmlFor={`description-${item.id}`} className="text-sm font-medium text-slate-600 dark:text-slate-300">内容</label>
+                                <label htmlFor={`description-${item.id}`} className="text-sm font-medium text-slate-600 dark:text-slate-300">内容 / 備考</label>
                                 <textarea id={`description-${item.id}`} name="description" value={localData.description} onChange={handleChange} placeholder="内容" rows={2} className={inputClass} readOnly={item.status === 'approved'} />
                             </div>
                         </div>
                     )}
                     {item.status === 'pending_review' && (
-                        <button onClick={handleApprove} disabled={isApproving} className="mt-auto w-full flex items-center justify-center gap-2 bg-green-600 text-white font-semibold py-2.5 px-4 rounded-lg shadow-md hover:bg-green-700 transition-colors disabled:bg-slate-400 disabled:cursor-not-allowed">
-                            {isApproving ? <Loader className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
-                            承認して計上
-                        </button>
+                        <div className="mt-auto pt-4 flex gap-3">
+                            <button onClick={handleApprove} disabled={isApproving} className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg hover:bg-blue-700 hover:shadow-blue-500/20 transition-all disabled:bg-slate-400 disabled:cursor-not-allowed">
+                                {isApproving ? <Loader className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
+                                確定して仕訳に送る
+                            </button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -437,6 +453,31 @@ const InvoiceOCR: React.FC<InvoiceOCRProps> = ({ onSaveExpenses, addToast, reque
                 ) : (
                     items.length > 0 ? (
                         <div className="space-y-6">
+                            {items.some(i => i.status === InboxItemStatus.PendingReview) && (
+                                <div className="flex justify-end">
+                                    <button
+                                        onClick={async () => {
+                                            const toProcess = items.filter(i => i.status === InboxItemStatus.PendingReview);
+                                            if (toProcess.length === 0) return;
+                                            
+                                            requestConfirmation({
+                                                title: '一括確定',
+                                                message: `表示されている${toProcess.length}件の請求書をすべて確定して仕訳に送りますか？`,
+                                                onConfirm: async () => {
+                                                    for (const item of toProcess) {
+                                                        await handleApproveItem(item);
+                                                    }
+                                                    addToast('すべての請求書を確定しました。', 'success');
+                                                }
+                                            });
+                                        }}
+                                        className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-6 rounded-xl shadow-lg shadow-emerald-500/20 transition-all hover:-translate-y-0.5"
+                                    >
+                                        <CheckCircle className="w-5 h-5" />
+                                        <span>すべての確認済みを確定 (一括処理)</span>
+                                    </button>
+                                </div>
+                            )}
                             {items.map(item => (
                                 <InboxItemCard key={item.id} item={item} onUpdate={handleUpdateItem} onDelete={handleDeleteItem} onApprove={handleApproveItem} requestConfirmation={requestConfirmation} />
                             ))}

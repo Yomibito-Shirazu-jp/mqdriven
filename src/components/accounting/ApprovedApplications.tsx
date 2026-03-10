@@ -3,6 +3,7 @@ import { FileCheck, Search, Eye, Loader, X, RefreshCw, Check, Pencil, Sparkles }
 import { ApplicationWithDetails, AIJournalSuggestion, Page } from '../../../types';
 import * as dataService from '../../../services/dataService';
 import { suggestJournalEntry } from '../../../services/geminiService';
+import { isAccountingTargetApplication } from './accountingApplicationFilter';
 
 interface ApprovedApplicationsProps {
   notify?: (message: string, type: 'success' | 'info' | 'error') => void;
@@ -52,7 +53,7 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
     setError(null);
     try {
       const data = await dataService.getApprovedApplications(codes);
-      setApplications(data);
+      setApplications(data.filter(isAccountingTargetApplication));
     } catch (err) {
       setError('承認済み申請の取得に失敗しました。');
       console.error(err);
@@ -479,9 +480,9 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-700">
                   <th className="px-5 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">種別</th>
-                  <th className="px-5 py-4 text-sm font-medium text-slate-500 dark:text-slate-400">件名</th>
+                  <th className="px-5 py-4 text-sm font-medium text-slate-500 dark:text-slate-400">件名 / 支払先</th>
                   <th className="px-5 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 text-right whitespace-nowrap">金額</th>
-                  <th className="px-5 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">日時</th>
+                  <th className="px-5 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">請求日 / 支払日</th>
                   <th className="px-5 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">仕訳</th>
                   <th className="px-5 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">提案</th>
                   <th className="px-5 py-4 text-sm font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">修正</th>
@@ -512,19 +513,26 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                         <button
                           type="button"
                           onClick={() => setSelectedApplicationId(app.id)}
-                          className="text-[15px] text-teal-700 dark:text-teal-400 hover:underline text-left truncate block max-w-md"
+                          className="text-[15px] text-teal-700 dark:text-teal-400 hover:underline text-left truncate block max-w-md font-medium"
                         >
                           {buildTitle(app)}
                         </button>
-                        <div className="text-[13px] text-slate-400 dark:text-slate-500 truncate max-w-md">
-                          {app.applicant?.name}{buildTitle(app) !== (app.formData?.invoice?.supplierName || '') && app.formData?.invoice?.supplierName ? ` / ${app.formData.invoice.supplierName}` : ''}
+                        <div className="text-[13px] text-slate-500 dark:text-slate-400 truncate max-w-md mt-0.5">
+                          {app.formData?.invoice?.supplierName || app.formData?.supplierName || app.formData?.paymentDestination || '-'}
+                          <span className="mx-1 text-slate-300">|</span>
+                          {app.applicant?.name}
                         </div>
                       </td>
                       <td className="px-5 py-4 text-right text-[15px] tabular-nums text-slate-800 dark:text-slate-100 whitespace-nowrap">
                         {amountText || '-'}
                       </td>
-                      <td className="px-5 py-4 text-[13px] text-slate-400 dark:text-slate-500 whitespace-nowrap">
-                        {formatDate(app.approvedAt)}
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <div className="text-[13px] text-slate-600 dark:text-slate-300">
+                          {app.formData?.invoice?.invoiceDate || app.formData?.invoiceDate || '-'}
+                        </div>
+                        <div className="text-[12px] text-teal-600 dark:text-teal-400 font-medium">
+                          判:{app.formData?.invoice?.paymentDate || app.formData?.paymentDate || '-'}
+                        </div>
                       </td>
                       <td className="px-5 py-4 whitespace-nowrap">
                         {hasJournal ? (

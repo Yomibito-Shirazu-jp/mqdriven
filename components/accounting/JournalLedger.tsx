@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { getJournalBookData, updateJournalLine } from '../../services/dataService';
-import { Loader, BookOpen, Edit, Save, X, CheckCircle, Calendar, ChevronLeft, ChevronRight } from '../Icons';
+import { getJournalBookData } from '../../services/dataService';
+import { Loader, BookOpen, Calendar, ChevronLeft, ChevronRight } from '../Icons';
 import EmptyState from '../ui/EmptyState';
 import SortableHeader from '../ui/SortableHeader';
 import { EmployeeUser } from '../../types';
@@ -45,8 +45,8 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry, isAIOff, curr
       const endDate = new Date(year, month, 0);
       const endDateStr = `${endDate.getFullYear()}-${(endDate.getMonth() + 1).toString().padStart(2, '0')}-${endDate.getDate().toString().padStart(2, '0')}`;
       const data = await getJournalBookData({ startDate, endDate: endDateStr });
-      // 確定済み仕訳のみ表示（ビューが全ステータス返すためクライアントフィルタ）
-      setEntries(data.filter((e: any) => e.status === 'posted'));
+      // draft・posted 両方表示（postedのみだとデータが少なすぎる）
+      setEntries(data);
     } catch (err) {
       console.error('Failed to fetch journal book data:', err);
     } finally {
@@ -84,8 +84,11 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry, isAIOff, curr
   }, [entries]);
 
   const handleEdit = (entry: any) => {
+    // v_journal_book は集計VIEWのため直接編集不可
+    // editingId を entry.code+date の複合キーで管理（参考表示のみ）
     if (!isAdmin) return;
-    setEditingId(entry.id);
+    const key = `${String(entry.date).split('T')[0]}_${entry.code}`;
+    setEditingId(key);
     setEditingEntry({ ...entry });
   };
 
@@ -94,13 +97,9 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry, isAIOff, curr
 
     setIsSaving(true);
     try {
-      await updateJournalLine(editingId, {
-        debit: Number(editingEntry.debit_amount) || 0,
-        credit: Number(editingEntry.credit_amount) || 0,
-      });
-      setEntries(prev => prev.map(entry =>
-        entry.id === editingId ? { ...entry, ...editingEntry } : entry
-      ));
+      // v_journal_book はVIEWのため直接更新不可。
+      // 実際には accounting.journal_lines を更新する必要があるが、
+      // VIEWにはjournal_line_id がないため現時点ではキャンセルとして処理
       setEditingId(null);
       setEditingEntry({});
     } catch (error) {
@@ -179,7 +178,7 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry, isAIOff, curr
                   <div className="text-sm text-gray-500">📅</div>
                   <div>
                     <p className="text-xs text-gray-500">取引日</p>
-                    <p className="font-semibold text-sm">{entry.date}</p>
+                    <p className="font-semibold text-sm">{String(entry.date).split('T')[0]}</p>
                   </div>
                 </div>
               </div>
@@ -226,18 +225,6 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry, isAIOff, curr
                   </div>
                 )}
 
-                {/* Admin Actions */}
-                {isAdmin && (
-                  <div className="pt-3 border-t border-gray-100">
-                    <button
-                      onClick={() => handleEdit(entry)}
-                      className="w-full flex items-center justify-center space-x-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      <Edit className="w-4 h-4" />
-                      <span>編集する</span>
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           ))}
@@ -280,125 +267,36 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry, isAIOff, curr
                 requestSort={(key) => setSortConfig({ key, direction: sortConfig?.key === key && sortConfig.direction === 'ascending' ? 'descending' : 'ascending' })}
               />
               <SortableHeader
-                label="勘定区分"
-                sortKey="category"
+                label="ステータス"
+                sortKey="status"
                 sortConfig={sortConfig}
                 requestSort={(key) => setSortConfig({ key, direction: sortConfig?.key === key && sortConfig.direction === 'ascending' ? 'descending' : 'ascending' })}
               />
-              {isAdmin && <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                操作
-              </th>}
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {sortedEntries.map((entry, index) => (
-              <tr key={entry.id || index} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {editingId === entry.id ? (
-                    <input
-                      type="date"
-                      value={editingEntry.date || ''}
-                      onChange={(e) => handleFieldChange('date', e.target.value)}
-                      className="w-full px-2 py-1 border border-gray-300 rounded"
-                    />
-                  ) : (
-                    entry.date
-                  )}
+              <tr key={`${String(entry.date).split('T')[0]}_${entry.code}_${index}`} className="hover:bg-gray-50">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono">
+                  {String(entry.date).split('T')[0]}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {editingId === entry.id ? (
-                    <input
-                      type="text"
-                      value={editingEntry.code || ''}
-                      onChange={(e) => handleFieldChange('code', e.target.value)}
-                      className="w-full px-2 py-1 border border-gray-300 rounded"
-                    />
-                  ) : (
-                    entry.code
-                  )}
+                  {entry.code}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {editingId === entry.id ? (
-                    <input
-                      type="text"
-                      value={editingEntry.name || ''}
-                      onChange={(e) => handleFieldChange('name', e.target.value)}
-                      className="w-full px-2 py-1 border border-gray-300 rounded"
-                    />
-                  ) : (
-                    entry.name
-                  )}
+                  {entry.name}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {editingId === entry.id ? (
-                    <input
-                      type="number"
-                      value={editingEntry.debit_amount || ''}
-                      onChange={(e) => handleFieldChange('debit_amount', Number(e.target.value))}
-                      className="w-full px-2 py-1 border border-gray-300 rounded"
-                    />
-                  ) : (
-                    entry.debit_amount > 0 ? `¥${entry.debit_amount.toLocaleString()}` : '-'
-                  )}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-mono">
+                  {Number(entry.debit_amount) > 0 ? `¥${Number(entry.debit_amount).toLocaleString()}` : '-'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {editingId === entry.id ? (
-                    <input
-                      type="number"
-                      value={editingEntry.credit_amount || ''}
-                      onChange={(e) => handleFieldChange('credit_amount', Number(e.target.value))}
-                      className="w-full px-2 py-1 border border-gray-300 rounded"
-                    />
-                  ) : (
-                    entry.credit_amount > 0 ? `¥${entry.credit_amount.toLocaleString()}` : '-'
-                  )}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-mono">
+                  {Number(entry.credit_amount) > 0 ? `¥${Number(entry.credit_amount).toLocaleString()}` : '-'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {editingId === entry.id ? (
-                    <select
-                      value={editingEntry.category || ''}
-                      onChange={(e) => handleFieldChange('category', e.target.value)}
-                      className="w-full px-2 py-1 border border-gray-300 rounded"
-                    >
-                      <option value="">選択してください</option>
-                      <option value="売上">売上</option>
-                      <option value="仕入">仕入</option>
-                      <option value="経費">経費</option>
-                      <option value="人件費">人件費</option>
-                      <option value="その他">その他</option>
-                    </select>
-                  ) : (
-                    entry.category || '-'
-                  )}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${entry.status === 'posted' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {entry.status === 'posted' ? '確定' : '下書'}
+                  </span>
                 </td>
-                {isAdmin && (
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {editingId === entry.id ? (
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={handleSave}
-                          disabled={isSaving}
-                          className="p-1 text-green-600 hover:text-green-800 disabled:opacity-50"
-                        >
-                          {isSaving ? <Loader className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                        </button>
-                        <button
-                          onClick={handleCancel}
-                          className="p-1 text-red-600 hover:text-red-800"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        onClick={() => handleEdit(entry)}
-                        className="p-1 text-blue-600 hover:text-blue-800"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                    )}
-                  </td>
-                )}
               </tr>
             ))}
           </tbody>
@@ -413,7 +311,6 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry, isAIOff, curr
                   : <span className="text-red-600 text-xs">差額 ¥{Math.abs(totals.diff).toLocaleString()}</span>
                 }
               </td>
-              {isAdmin && <td></td>}
             </tr>
           </tfoot>
         </table>
