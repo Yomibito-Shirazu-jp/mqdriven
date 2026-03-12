@@ -112,53 +112,53 @@ const TrialBalancePage: React.FC = () => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-x-auto bg-white mt-4 border-t border-gray-200">
         {isLoading ? (
-          <div className="flex items-center justify-center h-full"><Loader className="w-8 h-8 animate-spin text-indigo-600" /></div>
+          <div className="flex items-center justify-center h-full min-h-[200px]"><Loader className="w-8 h-8 animate-spin text-gray-500" /></div>
         ) : error ? (
-          <div className="flex items-center justify-center h-full text-red-500">{error}</div>
+          <div className="flex items-center justify-center h-full min-h-[200px] text-red-500">{error}</div>
         ) : data.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-slate-400 text-sm">この期間の試算表データはありません</div>
+          <div className="flex items-center justify-center h-full min-h-[200px] text-gray-400 text-sm">この期間の試算表データはありません</div>
         ) : (
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-100 sticky top-0 z-10 text-xs font-semibold text-slate-500">
+          <table className="w-full text-sm text-left whitespace-nowrap">
+            <thead className="bg-white border-b border-gray-200 text-gray-600 font-semibold">
               <tr>
-                <th className="px-4 py-3 border-b border-slate-200 w-24">科目コード</th>
-                <th className="px-4 py-3 border-b border-slate-200">勘定科目</th>
-                <th className="px-4 py-3 border-b border-slate-200 text-right w-36">借方</th>
-                <th className="px-4 py-3 border-b border-slate-200 text-right w-36">貸方</th>
-                <th className="px-4 py-3 border-b border-slate-200 text-right w-36">残高</th>
+                <th className="px-4 py-3 font-medium">科目コード</th>
+                <th className="px-4 py-3 font-medium">勘定科目</th>
+                <th className="px-4 py-3 font-medium text-right">借方</th>
+                <th className="px-4 py-3 font-medium text-right">貸方</th>
+                <th className="px-4 py-3 font-medium text-right">残高</th>
               </tr>
             </thead>
-            <tbody className="text-sm text-slate-700">
+            <tbody className="bg-white">
               {grouped.map(([section, rows]) => (
                 <React.Fragment key={section}>
-                  <tr className="bg-slate-50">
-                    <td colSpan={5} className="px-4 py-2 font-bold text-slate-600 text-xs uppercase tracking-wide border-b border-slate-200">
+                  <tr>
+                    <td colSpan={5} className="px-4 py-4 font-semibold text-gray-800 text-xs uppercase tracking-wide border-b border-gray-100">
                       {CATEGORY_LABELS[section] || section}
                     </td>
                   </tr>
                   {rows.map((row: any, i: number) => (
-                    <tr key={`${section}-${i}`} className="hover:bg-indigo-50/30 border-b border-slate-100">
-                      <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{row.code}</td>
-                      <td className="px-4 py-2.5 font-medium">{row.name}</td>
-                      <td className="px-4 py-2.5 text-right font-mono">{row.debit > 0 ? `¥${row.debit.toLocaleString()}` : ''}</td>
-                      <td className="px-4 py-2.5 text-right font-mono">{row.credit > 0 ? `¥${row.credit.toLocaleString()}` : ''}</td>
-                      <td className="px-4 py-2.5 text-right font-mono font-bold">{row.balance !== 0 ? `¥${row.balance.toLocaleString()}` : ''}</td>
+                    <tr key={`${section}-${i}`} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 text-gray-500">{row.code}</td>
+                      <td className="px-4 py-3 text-gray-700">{row.name}</td>
+                      <td className="px-4 py-3 text-right text-gray-700">{row.debit > 0 ? `¥${row.debit.toLocaleString()}` : ''}</td>
+                      <td className="px-4 py-3 text-right text-gray-700">{row.credit > 0 ? `¥${row.credit.toLocaleString()}` : ''}</td>
+                      <td className="px-4 py-3 text-right text-gray-800 font-medium">{row.balance !== 0 ? `¥${row.balance.toLocaleString()}` : ''}</td>
                     </tr>
                   ))}
                 </React.Fragment>
               ))}
             </tbody>
-            <tfoot className="bg-slate-100 font-bold text-sm border-t-2 border-slate-300">
+            <tfoot className="bg-white border-t-2 border-gray-200 font-bold text-gray-800">
               <tr>
                 <td className="px-4 py-3" colSpan={2}>合計</td>
-                <td className="px-4 py-3 text-right font-mono">¥{totals.debit.toLocaleString()}</td>
-                <td className="px-4 py-3 text-right font-mono">¥{totals.credit.toLocaleString()}</td>
-                <td className="px-4 py-3 text-right font-mono">
+                <td className="px-4 py-3 text-right">¥{totals.debit.toLocaleString()}</td>
+                <td className="px-4 py-3 text-right">¥{totals.credit.toLocaleString()}</td>
+                <td className="px-4 py-3 text-right">
                   {totals.debit === totals.credit
-                    ? <span className="text-green-600 text-xs">貸借一致</span>
-                    : <span className="text-red-600">差額 ¥{Math.abs(totals.debit - totals.credit).toLocaleString()}</span>
+                    ? <span className="text-green-600 font-normal text-xs">貸借一致</span>
+                    : <span className="text-red-600 font-normal text-xs">差額 ¥{Math.abs(totals.debit - totals.credit).toLocaleString()}</span>
                   }
                 </td>
               </tr>

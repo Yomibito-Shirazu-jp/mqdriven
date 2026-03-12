@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { FileCheck, Search, Eye, Loader, X, RefreshCw, Check, Pencil, Sparkles } from 'lucide-react';
 import { ApplicationWithDetails, AIJournalSuggestion, Page } from '../../../types';
 import * as dataService from '../../../services/dataService';
@@ -183,9 +183,18 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
   useEffect(() => {
     setAiSuggestion(null);
     setAiError(null);
-    setSelectedDebitAccountId('');
-    setSelectedCreditAccountId('');
-  }, [selectedApplicationId]);
+    
+    // 既存の仕訳が存在する場合は、その勘定科目を初期値としてセットする
+    if (selectedApplication?.journalEntry?.lines && selectedApplication.journalEntry.lines.length > 0) {
+      const debitLine = selectedApplication.journalEntry.lines.find((l: any) => (l.debit_amount || 0) > 0);
+      const creditLine = selectedApplication.journalEntry.lines.find((l: any) => (l.credit_amount || 0) > 0);
+      setSelectedDebitAccountId(debitLine?.account_item_id || '');
+      setSelectedCreditAccountId(creditLine?.account_item_id || '');
+    } else {
+      setSelectedDebitAccountId('');
+      setSelectedCreditAccountId('');
+    }
+  }, [selectedApplicationId]); // NOTE: 選択が変わった時だけ一度実行するため、あえてselectedApplicationを含めない
 
   const resolveAccountId = useCallback(
     (raw: string | null | undefined): string => {
@@ -326,6 +335,10 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
     if (!isAiAutoSuggest) return;
     if (aiSuggestion) return;
     if (accountItems.length === 0) return;
+    
+    // 既存の仕訳が存在する場合（修正モード）は自動提案を走らせず、過去の選択を維持する
+    if (selectedApplication.journalEntry?.lines && selectedApplication.journalEntry.lines.length > 0) return;
+
     const prompt = buildSuggestionPrompt(selectedApplication);
     if (prompt.replace(/\s+/g, '').length < 30) return;
     const timer = window.setTimeout(() => {

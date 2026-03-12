@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Global styles for MQ会計ドリブン */
+/* Global styles for FXGT matching theme */
 :root {
   color-scheme: light dark;
   --mq-font-family:
@@ -13,15 +13,15 @@
   --mq-page-width: 1480px;
   --mq-card-radius: 8px; /* Less rounded corners, more sleek */
   --mq-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); /* Very subtle flat shadow */
-  --mq-border: #edf2f7; /* Very light border */
+  --mq-border: #f1f5f9; /* Very light border */
   --mq-bg: #f8fafc; /* Minimal bright background */
   --mq-card-bg: #ffffff;
-  --mq-text: #334155; /* Slightly softer dark for elegance */
-  --mq-muted: #64748b;
+  --mq-text: #1f2937; /* Darker slate for contrast */
+  --mq-muted: #6b7280;
   --mq-table-head: #ffffff;
-  --mq-table-hover: #f8fafc;
+  --mq-table-hover: #fcfcfd;
   --mq-input-bg: #ffffff;
-  --mq-input-border: #cbd5e1;
+  --mq-input-border: #d1d5db;
   --mq-focus: #0f766e; /* FXGT matching teal */
   --mq-btn-shadow: none; /* Flat design */
   --mq-radius: 6px;
@@ -137,21 +137,22 @@ html.dark {
 
 .mq-page thead th {
   background: var(--mq-card-bg);
-  color: #1e293b;
-  font-weight: 700;
+  color: #6b7280;
+  font-weight: 500;
   font-size: 0.8rem;
   letter-spacing: 0.02em;
   border-bottom: 2px solid var(--mq-border);
-  padding: 1rem 1.5rem;
+  padding: 1.25rem 1.5rem;
   text-transform: none;
   text-align: left;
 }
 
 .mq-page tbody td {
   border-bottom: 1px solid var(--mq-border);
-  padding: 1.15rem 1.5rem;
+  padding: 1.25rem 1.5rem;
   font-size: 0.85rem;
-  color: #334155;
+  color: #1f2937;
+  font-weight: 500;
 }
 
 .mq-page tbody tr:hover {

@@ -664,16 +664,66 @@ export interface Invoice extends LooseRecord {
   updated_at?: string;
 }
 
+export interface InvoiceLineItem {
+  description?: string;
+  lineDate?: string;
+  quantity?: number;
+  unit?: string;
+  unitPrice?: number;
+  amountExclTax?: number;
+  taxRate?: number;
+  customerName?: string;
+  projectName?: string;
+}
+
+export interface BankAccountInfo {
+  bankName?: string;
+  branchName?: string;
+  accountType?: string;
+  accountNumber?: string;
+  accountHolder?: string;
+}
+
 export interface InvoiceData extends LooseRecord {
+  // --- 書類メタ ---
+  imageNo?: string;
+  documentType?: string; // 請求書, 納品書, 稟議書, etc.
+  // --- 発行元（請求元）---
   vendorName?: string;
+  registrationNumber?: string;
+  vendorPostalCode?: string;
+  vendorAddress?: string;
+  vendorContact?: string;
+  // --- 宛先（請求先）---
+  recipientName?: string;
+  recipientPostalCode?: string;
+  recipientAddress?: string;
+  recipientContact?: string;
+  // --- 日付 ---
   invoiceDate?: string;
+  closingDate?: string;
+  dueDate?: string;
+  // --- 金額 ---
+  subtotalAmount?: number;
+  taxAmount?: number;
   totalAmount?: number;
   taxInclusive?: boolean;
+  withholdingTax?: number;
+  discountOffset?: number;
+  netAmount?: number; // 差引請求額
+  // --- 分類 ---
   description?: string;
   costType?: 'V' | 'F';
   account?: string;
   relatedCustomer?: string;
   project?: string;
+  // --- 振込先 ---
+  bankAccount?: BankAccountInfo;
+  bankAccountRaw?: string; // OCR生テキスト
+  // --- 明細 ---
+  lineItems?: InvoiceLineItem[];
+  // --- 備考 ---
+  notes?: string;
 }
 
 export interface InboxItem {

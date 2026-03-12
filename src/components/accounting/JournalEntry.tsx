@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, Loader, CheckCircle, FileText, Plus, ArrowRight } from 'lucide-react';
 import { ApplicationWithDetails, AIJournalSuggestion, User } from '../../../types';
 import * as dataService from '../../../services/dataService';
@@ -399,9 +399,9 @@ export const JournalReviewPage: React.FC<JournalReviewPageProps> = ({ notify, cu
         <div>
           <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
             <FileText className="w-6 h-6 text-indigo-600" />
-            自動仕訳レビュー
+            自動案件予算分析
           </h2>
-          <p className="text-slate-500 text-sm mt-1">この画面で仕訳の生成・確定を行います。</p>
+          <p className="text-slate-500 text-sm mt-1">この画面で分析の生成・確定を行います。</p>
         </div>
         <div className="flex gap-2">
           <button

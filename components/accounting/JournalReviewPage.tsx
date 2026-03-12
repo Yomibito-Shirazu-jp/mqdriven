@@ -126,9 +126,9 @@ const StrategicMQReviewPage: React.FC<StrategicMQReviewPageProps> = ({ currentUs
               <div className="p-2 bg-indigo-600 rounded-lg">
                 <TrendingUp className="w-5 h-5 text-white" />
               </div>
-              案件別MQレビュー (Strategic Review)
+              案件予算分析
             </h1>
-            <p className="text-slate-500 text-sm mt-1">過去の見積データに基づいた収益性分析とMQマネジメント</p>
+            <p className="text-slate-500 text-sm mt-1">過去の見積データに基づいた収益性分析と予算マネジメント</p>
           </div>
           <div className="flex gap-3">
              <button 

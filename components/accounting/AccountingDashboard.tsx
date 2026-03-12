@@ -117,7 +117,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({ currentUser }
             <div>
               <h3 className="font-semibold text-red-800">要対応</h3>
               <p className="text-red-600 text-sm">
-                承認済み申請が{metrics.pendingReview}件、仕訳レビュー待ちです
+                承認済み申請が{metrics.pendingReview}件、案件予算分析待ちです
               </p>
             </div>
           </div>
@@ -127,7 +127,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({ currentUser }
       {/* メトリクスグリッド */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <MetricCard
-          title="仕訳レビュー待ち"
+          title="案件予算分析待ち"
           value={metrics.pendingReview}
           icon={FileText}
           color="text-blue-600"
@@ -165,7 +165,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({ currentUser }
           {metrics.pendingReview > 0 && (
             <button className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
               <FileText className="w-4 h-4" />
-              仕訳レビューへ
+              案件予算分析へ
             </button>
           )}
           

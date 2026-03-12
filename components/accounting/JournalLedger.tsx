@@ -167,74 +167,10 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry, isAIOff, curr
   return (
     <div className="space-y-4">
       {monthPicker}
-      {/* Mobile Card View */}
-      <div className="lg:hidden">
-        <div className="space-y-3">
-          {sortedEntries.map((entry, index) => (
-            <div key={entry.id || index} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-              {/* Card Header - Date */}
-              <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
-                <div className="flex items-center space-x-3">
-                  <div className="text-sm text-gray-500">📅</div>
-                  <div>
-                    <p className="text-xs text-gray-500">取引日</p>
-                    <p className="font-semibold text-sm">{String(entry.date).split('T')[0]}</p>
-                  </div>
-                </div>
-              </div>
 
-              {/* Card Body */}
-              <div className="p-4 space-y-4">
-                {/* Account Information */}
-                <div className="grid grid-cols-1 gap-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="text-sm text-gray-500">📋</div>
-                    <div className="flex-1">
-                      <p className="text-xs text-gray-500">科目</p>
-                      <p className="font-medium text-sm">{entry.code} - {entry.name}</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Amounts - Side by Side */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-red-50 rounded-lg p-3">
-                    <p className="text-xs text-red-600 font-medium mb-1">借方</p>
-                    <p className="font-bold text-red-700">
-                      {entry.debit_amount > 0 ? `¥${entry.debit_amount.toLocaleString()}` : '-'}
-                    </p>
-                  </div>
-                  <div className="bg-blue-50 rounded-lg p-3">
-                    <p className="text-xs text-blue-600 font-medium mb-1">貸方</p>
-                    <p className="font-bold text-blue-700">
-                      {entry.credit_amount > 0 ? `¥${entry.credit_amount.toLocaleString()}` : '-'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Category */}
-                {entry.category && (
-                  <div className="flex items-center space-x-3">
-                    <div className="text-sm text-gray-500">🏷️</div>
-                    <div>
-                      <p className="text-xs text-gray-500">勘定区分</p>
-                      <span className="inline-block px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded">
-                        {entry.category}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Desktop Table View */}
-      <div className="hidden lg:block overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead>
+      <div className="overflow-x-auto bg-white border-t border-gray-200 mt-4">
+        <table className="w-full text-sm text-left whitespace-nowrap">
+          <thead className="bg-white border-b border-gray-200 text-gray-600 font-semibold">
             <tr>
               <SortableHeader
                 label="日付"
@@ -274,41 +210,41 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry, isAIOff, curr
               />
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white">
             {sortedEntries.map((entry, index) => (
-              <tr key={`${String(entry.date).split('T')[0]}_${entry.code}_${index}`} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-mono">
+              <tr key={`${String(entry.date).split('T')[0]}_${entry.code}_${index}`} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                <td className="px-6 py-4 text-gray-700 font-mono">
                   {String(entry.date).split('T')[0]}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td className="px-6 py-4 text-gray-700">
                   {entry.code}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td className="px-6 py-4 text-gray-700">
                   {entry.name}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-mono">
+                <td className="px-6 py-4 text-right text-gray-700 font-mono">
                   {Number(entry.debit_amount) > 0 ? `¥${Number(entry.debit_amount).toLocaleString()}` : '-'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right font-mono">
+                <td className="px-6 py-4 text-right text-gray-700 font-mono">
                   {Number(entry.credit_amount) > 0 ? `¥${Number(entry.credit_amount).toLocaleString()}` : '-'}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${entry.status === 'posted' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                    {entry.status === 'posted' ? '確定' : '下書'}
+                <td className="px-6 py-4 text-center">
+                  <span className={`text-xs ${entry.status === 'posted' ? 'text-gray-500' : 'text-gray-400'}`}>
+                    {entry.status === 'posted' ? 'Standard' : 'Draft'}
                   </span>
                 </td>
               </tr>
             ))}
           </tbody>
-          <tfoot className="bg-slate-100 font-bold text-sm">
+          <tfoot className="bg-white border-t-2 border-gray-200 font-bold text-gray-800">
             <tr>
-              <td className="px-6 py-3" colSpan={3}>合計</td>
-              <td className="px-6 py-3 text-right">¥{totals.debit.toLocaleString()}</td>
-              <td className="px-6 py-3 text-right">¥{totals.credit.toLocaleString()}</td>
-              <td className="px-6 py-3 text-center">
+              <td className="px-6 py-4" colSpan={3}>合計</td>
+              <td className="px-6 py-4 text-right">¥{totals.debit.toLocaleString()}</td>
+              <td className="px-6 py-4 text-right">¥{totals.credit.toLocaleString()}</td>
+              <td className="px-6 py-4 text-center">
                 {totals.diff === 0
-                  ? <span className="text-green-600 text-xs">貸借一致</span>
-                  : <span className="text-red-600 text-xs">差額 ¥{Math.abs(totals.diff).toLocaleString()}</span>
+                  ? <span className="text-green-600 font-normal text-xs">貸借一致</span>
+                  : <span className="text-red-600 font-normal text-xs">差額 ¥{Math.abs(totals.diff).toLocaleString()}</span>
                 }
               </td>
             </tr>

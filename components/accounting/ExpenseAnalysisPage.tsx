@@ -40,7 +40,7 @@ const ExpenseAnalysisPage: React.FC = () => {
 
   // 月別タブ: 展開中の月
   const [expandedMonth, setExpandedMonth] = useState<string | null>(null);
-  // 勘定科目別タブ: 展開中の行キー ("YYYY-MM-DD::account_id")
+  // 勘定科目別タブ: 展開中の行キー ("YYYY-MM-DD::account_id") or 行全体展開 ("row::account_id")
   const [expandedAccountKey, setExpandedAccountKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -853,46 +853,73 @@ const ExpenseAnalysisPage: React.FC = () => {
                   </thead>
                   <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-100 dark:divide-slate-700">
                     {accounts.map(acc => {
-                      const openCellMonth = expandedAccountKey?.startsWith(`${acc.id}::`) ? expandedAccountKey.slice(acc.id.length + 2) : null;
-                      const detailLines = openCellMonth
-                        ? filteredLines.filter(l => l.account_id === acc.id && l.occurred_on && l.occurred_on.slice(0, 7) === openCellMonth)
-                            .sort((a, b) => Math.abs(b.amount || 0) - Math.abs(a.amount || 0))
-                        : [];
+                      const rowKey = `row::${acc.id}`;
+                      const isRowExpanded = expandedAccountKey === rowKey;
+                      const openCellMonth = expandedAccountKey?.startsWith(`${acc.id}::`) && !expandedAccountKey.startsWith('row::')
+                        ? expandedAccountKey.slice(acc.id.length + 2) : null;
+                      const isExpanded = isRowExpanded || !!openCellMonth;
+                      const detailLines = isRowExpanded
+                        ? filteredLines.filter(l => l.account_id === acc.id)
+                            .sort((a, b) => (a.occurred_on || '').localeCompare(b.occurred_on || '') || Math.abs(b.amount || 0) - Math.abs(a.amount || 0))
+                        : openCellMonth
+                          ? filteredLines.filter(l => l.account_id === acc.id && l.occurred_on && l.occurred_on.slice(0, 7) === openCellMonth)
+                              .sort((a, b) => Math.abs(b.amount || 0) - Math.abs(a.amount || 0))
+                          : [];
+                      const detailLabel = isRowExpanded
+                        ? `${acc.code} ${acc.name} — 全${detailLines.length}件`
+                        : openCellMonth
+                          ? `${openCellMonth.split('-').map((v: string, i: number) => i === 0 ? `${v}年` : `${parseInt(v)}月`).join('')} / ${acc.code} ${acc.name} — ${detailLines.length}件`
+                          : '';
                       return (
                         <React.Fragment key={acc.id}>
-                          <tr className="group hover:bg-slate-50 dark:hover:bg-slate-700/40">
-                            <td className="sticky left-0 z-10 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-700/40 px-3 py-2.5 font-mono text-xs text-slate-400 dark:text-slate-500 border-r border-slate-100 dark:border-slate-700">{acc.code}</td>
-                            <td className="sticky left-[72px] z-10 bg-white dark:bg-slate-800 group-hover:bg-slate-50 dark:group-hover:bg-slate-700/40 px-4 py-2.5 font-medium text-slate-800 dark:text-slate-200 border-r border-slate-100 dark:border-slate-700 min-w-[180px]">{acc.name}</td>
+                          <tr className={`group hover:bg-slate-50 dark:hover:bg-slate-700/40 ${isExpanded ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''}`}>
+                            <td
+                              onClick={() => setExpandedAccountKey(isRowExpanded ? null : rowKey)}
+                              className={`sticky left-0 z-10 group-hover:bg-slate-50 dark:group-hover:bg-slate-700/40 px-3 py-2.5 font-mono text-xs border-r border-slate-100 dark:border-slate-700 cursor-pointer
+                                ${isExpanded ? 'bg-blue-50 dark:bg-blue-900/10 text-blue-600 dark:text-blue-400' : 'bg-white dark:bg-slate-800 text-slate-400 dark:text-slate-500'}`}
+                            >{acc.code}</td>
+                            <td
+                              onClick={() => setExpandedAccountKey(isRowExpanded ? null : rowKey)}
+                              className={`sticky left-[72px] z-10 group-hover:bg-slate-50 dark:group-hover:bg-slate-700/40 px-4 py-2.5 font-medium border-r border-slate-100 dark:border-slate-700 min-w-[180px] cursor-pointer
+                                ${isExpanded ? 'bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-300' : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200'}`}
+                            >
+                              <span className="flex items-center gap-1.5">
+                                <span className={`inline-block w-3 text-[10px] transition-transform ${isExpanded ? 'rotate-90' : ''}`}>▶</span>
+                                {acc.name}
+                              </span>
+                            </td>
                             {months.map(m => {
                               const amt = acc.byMonth.get(m) || 0;
                               const cellKey = `${acc.id}::${m}`;
-                              const isActive = expandedAccountKey === cellKey;
+                              const isCellActive = expandedAccountKey === cellKey;
                               return (
                                 <td
                                   key={m}
-                                  onClick={() => amt > 0 && setExpandedAccountKey(isActive ? null : cellKey)}
+                                  onClick={() => amt > 0 && setExpandedAccountKey(isCellActive ? null : cellKey)}
                                   className={`px-4 py-2.5 text-right font-mono border-l border-slate-50 dark:border-slate-700/50 transition-colors
                                     ${amt > 0 ? 'cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/20' : 'text-slate-200 dark:text-slate-700'}
-                                    ${isActive ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold' : amt > 0 ? 'text-slate-800 dark:text-slate-100' : ''}`}
+                                    ${isCellActive ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 font-bold' : amt > 0 ? 'text-slate-800 dark:text-slate-100' : ''}`}
                                 >
                                   {amt > 0 ? `¥${Math.round(amt).toLocaleString()}` : '−'}
                                 </td>
                               );
                             })}
-                            <td className="px-4 py-2.5 text-right font-mono font-bold text-blue-700 dark:text-blue-300 border-l border-blue-100 dark:border-blue-800/50 bg-blue-50/50 dark:bg-blue-900/10">
+                            <td
+                              onClick={() => setExpandedAccountKey(isRowExpanded ? null : rowKey)}
+                              className="px-4 py-2.5 text-right font-mono font-bold text-blue-700 dark:text-blue-300 border-l border-blue-100 dark:border-blue-800/50 bg-blue-50/50 dark:bg-blue-900/10 cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/30"
+                            >
                               ¥{Math.round(acc.total).toLocaleString()}
                             </td>
                           </tr>
-                          {openCellMonth && (
+                          {isExpanded && (
                             <tr>
                               <td colSpan={2 + months.length + 1} className="p-0">
                                 <div className="bg-blue-50 dark:bg-blue-900/10 border-b border-blue-200 dark:border-blue-800">
                                   <div className="flex items-center justify-between px-6 py-2 bg-blue-100/60 dark:bg-blue-800/30">
                                     <span className="text-xs font-semibold text-blue-800 dark:text-blue-200">
-                                      {openCellMonth.split('-').map((v, i) => i === 0 ? `${v}年` : `${parseInt(v)}月`).join('')}
-                                      {' / '}{acc.code} {acc.name} — {detailLines.length}件
+                                      {detailLabel}
                                     </span>
-                                    <button onClick={() => setExpandedAccountKey(null)} className="text-xs text-blue-500 hover:text-blue-700">✕ 閉じる</button>
+                                    <button onClick={() => setExpandedAccountKey(null)} className="text-xs text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-200">✕ 閉じる</button>
                                   </div>
                                   {detailLines.length === 0 ? (
                                     <p className="px-8 py-3 text-sm text-gray-400">明細データが見つかりません</p>
@@ -907,7 +934,7 @@ const ExpenseAnalysisPage: React.FC = () => {
                                       </thead>
                                       <tbody className="divide-y divide-blue-100/70 dark:divide-blue-800/20">
                                         {detailLines.map((line, li) => (
-                                          <tr key={line.journal_line_id || li} className="hover:bg-blue-100/40">
+                                          <tr key={line.journal_line_id || li} className="hover:bg-blue-100/40 dark:hover:bg-blue-800/20">
                                             <td className="px-8 py-1.5 text-sm text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDate(line.occurred_on)}</td>
                                             <td className="px-4 py-1.5 text-sm text-gray-700 dark:text-gray-300 max-w-md truncate">{line.supplier_name || line.entry_description || line.description || '−'}</td>
                                             <td className="px-4 py-1.5 text-sm text-right font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">{formatCurrency(line.amount)}</td>
@@ -939,7 +966,7 @@ const ExpenseAnalysisPage: React.FC = () => {
                   </tfoot>
                 </table>
               </div>
-              <p className="mt-2 px-1 text-xs text-gray-400">※ 金額セルをクリックすると、その月・科目の明細が展開されます</p>
+              <p className="mt-2 px-1 text-xs text-gray-400">※ 科目名/合計をクリックで全明細、月別セルをクリックでその月の明細が展開されます</p>
             </div>
           );
         })()}

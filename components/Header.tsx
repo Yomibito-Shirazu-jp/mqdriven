@@ -45,14 +45,14 @@ const ActionButton: React.FC<{ action: HeaderAction; variant?: 'primary' | 'seco
 }) => {
   const baseClasses =
     variant === 'primary'
-      ? 'bg-blue-600 text-white hover:bg-blue-700'
-      : 'bg-white text-blue-700 border border-blue-200 hover:bg-blue-50';
+      ? 'bg-primary-700 text-white hover:bg-primary-800'
+      : 'bg-white text-primary-700 border border-primary-200 hover:bg-primary-50';
   return (
     <div className="relative group">
       <button
         onClick={action.onClick}
         disabled={action.disabled}
-        className={`flex items-center gap-2 font-semibold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 transition-colors disabled:bg-slate-400 disabled:text-white disabled:cursor-not-allowed ${baseClasses}`}
+        className={`flex items-center gap-2 font-bold py-1.5 px-5 rounded bg-[#0f766e] hover:bg-[#0d6b63] focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-opacity-75 transition-colors disabled:bg-slate-400 disabled:text-white disabled:cursor-not-allowed ${baseClasses}`}
       >
         {action.icon && <action.icon className="w-5 h-5" />}
         {action.label}
@@ -102,8 +102,8 @@ const Header: React.FC<HeaderProps> = ({ title, primaryAction, secondaryActions,
   };
 
   return (
-    <header className="flex items-center justify-between pb-5 border-b border-slate-200 dark:border-slate-700">
-      <h1 className="text-2xl font-semibold text-slate-800 dark:text-white capitalize">{title}</h1>
+    <header className="flex items-center justify-between pb-4 min-h-[64px]">
+      <h1 className="text-xl font-bold text-slate-800 dark:text-white capitalize tracking-tight">{title}</h1>
       <div className="flex items-center gap-4">
         <div className="hidden sm:block text-xs text-slate-500 dark:text-slate-400">
           {timeString}

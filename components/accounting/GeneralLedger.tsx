@@ -36,7 +36,7 @@ const GeneralLedger: React.FC = () => {
       // v_accounting_base から実際にデータのある科目コード・名称を取得
       const { data, error } = await sb
         .from('v_accounting_base')
-        .select('code, name')
+        .select('code, name, account_type, normal_balance_side')
         .order('code');
 
       if (error) throw error;
@@ -47,7 +47,7 @@ const GeneralLedger: React.FC = () => {
         if (!row.code || seen.has(row.code)) return false;
         seen.add(row.code);
         return true;
-      }).map((row: any) => ({ id: row.code, code: row.code, name: row.name, account_type: null }));
+      }).map((row: any) => ({ id: row.code, code: row.code, name: row.name, account_type: row.account_type, normal_balance_side: row.normal_balance_side }));
 
       setAccounts(unique);
       if (unique.length > 0) {
@@ -77,7 +77,7 @@ const GeneralLedger: React.FC = () => {
 
       const { data, error } = await sb
         .from('v_accounting_base')
-        .select('id, date, code, name, debit_amount, credit_amount, status')
+        .select('id, date, code, name, debit_amount, credit_amount, status, normal_balance_side, line_description, entry_description')
         .eq('code', selectedCode)
         .gte('date', startDate)
         .lte('date', endDateStr)
@@ -85,16 +85,23 @@ const GeneralLedger: React.FC = () => {
 
       if (error) throw error;
 
-      // 累積残高を計算
+      // 科目の通常増加側を取得（最初の行から）
+      const normalSide = selectedAccount?.normal_balance_side || (data?.[0] as any)?.normal_balance_side || 'debit';
+      const isDebitNormal = normalSide === 'debit';
+
+      // 累積残高を計算（科目種別に応じた正しい計算）
       let balance = 0;
       const rows = (data || []).map((row: any, i: number) => {
         const debit = Number(row.debit_amount) || 0;
         const credit = Number(row.credit_amount) || 0;
-        balance += debit - credit;
+        // 資産・費用科目: 借方が増加 (debit - credit)
+        // 負債・純資産・収益科目: 貸方が増加 (credit - debit)
+        balance += isDebitNormal ? (debit - credit) : (credit - debit);
         return {
           id: row.id || i,
           date: String(row.date).split('T')[0],
           status: row.status,
+          description: row.line_description || row.entry_description || '',
           debit: debit || null,
           credit: credit || null,
           type: debit > 0 ? '借' : '貸',
@@ -130,12 +137,11 @@ const GeneralLedger: React.FC = () => {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center space-x-4">
             <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-              <span className="p-1.5 bg-indigo-600 text-white rounded text-xs font-mono">GL</span>
               総勘定元帳
             </h2>
             <div className="relative group">
               <select
-                className="appearance-none pl-4 pr-10 py-2 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm min-w-[280px]"
+                className="appearance-none pl-4 pr-10 py-2 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-500 shadow-sm min-w-[280px]"
                 value={selectedCode}
                 onChange={(e) => setSelectedCode(e.target.value)}
               >
@@ -148,8 +154,18 @@ const GeneralLedger: React.FC = () => {
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             </div>
             {selectedAccount?.account_type && (
-              <span className="px-2.5 py-1 rounded text-xs font-bold border">
-                {selectedAccount.account_type}
+              <span className={`px-2.5 py-1 rounded text-xs font-bold border ${
+                selectedAccount.account_type === 'asset' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                selectedAccount.account_type === 'liability' ? 'bg-red-50 text-red-700 border-red-200' :
+                selectedAccount.account_type === 'equity' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                selectedAccount.account_type === 'revenue' ? 'bg-green-50 text-green-700 border-green-200' :
+                'bg-orange-50 text-orange-700 border-orange-200'
+              }`}>
+                {selectedAccount.account_type === 'asset' ? '資産' :
+                 selectedAccount.account_type === 'liability' ? '負債' :
+                 selectedAccount.account_type === 'equity' ? '純資産' :
+                 selectedAccount.account_type === 'revenue' ? '収益' : '費用'}
+                ({selectedAccount.normal_balance_side === 'debit' ? '借方増' : '貸方増'})
               </span>
             )}
           </div>
@@ -163,7 +179,7 @@ const GeneralLedger: React.FC = () => {
                 type="month"
                 value={period}
                 onChange={(e) => setPeriod(e.target.value)}
-                className="pl-9 pr-3 py-1.5 bg-white border border-slate-300 rounded text-sm text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-36"
+                className="pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded text-sm text-slate-600 focus:outline-none focus:ring-1 focus:ring-primary-500 w-36"
               />
               <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             </div>
@@ -174,7 +190,7 @@ const GeneralLedger: React.FC = () => {
             <button className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition">
               <Printer className="w-5 h-5" />
             </button>
-            <button className="px-3 py-1.5 bg-white border border-slate-300 rounded text-sm font-medium text-slate-600 hover:bg-slate-50 flex items-center gap-2">
+            <button className="px-3 py-1.5 bg-primary-700 rounded text-sm font-bold text-white hover:bg-primary-800 flex items-center gap-2 shadow-sm transition-colors">
               <Download className="w-4 h-4" /> CSV
             </button>
           </div>
@@ -195,47 +211,49 @@ const GeneralLedger: React.FC = () => {
           <p className="text-[10px] text-slate-500 uppercase tracking-wide">貸方合計</p>
           <p className="font-mono font-medium text-slate-700">{formatCurrency(totals.credit)}</p>
         </div>
-        <div className="p-3 text-center bg-indigo-50/30">
-          <p className="text-[10px] text-indigo-600 uppercase tracking-wide font-bold">期中残高</p>
-          <p className="font-mono font-bold text-indigo-700">{formatCurrency(currentBalance)}</p>
+        <div className="p-3 text-center bg-primary-50/50">
+          <p className="text-[10px] text-primary-700 uppercase tracking-wide font-bold">期中残高</p>
+          <p className="font-mono font-bold text-primary-800">{formatCurrency(currentBalance)}</p>
         </div>
       </div>
 
       {/* Table Area */}
-      <div className="flex-1 overflow-auto bg-white">
+      <div className="flex-1 overflow-x-auto bg-white mt-4 border-t border-gray-200">
         {isLoading ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader className="w-8 h-8 animate-spin text-indigo-600" />
+          <div className="flex items-center justify-center h-full min-h-[200px]">
+            <Loader className="w-8 h-8 animate-spin text-gray-500" />
           </div>
         ) : error ? (
-          <div className="flex items-center justify-center h-full text-red-500">{error}</div>
+          <div className="flex items-center justify-center h-full min-h-[200px] text-red-500">{error}</div>
         ) : ledgerData.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-slate-400 text-sm">この期間の取引データはありません</div>
+          <div className="flex items-center justify-center h-full min-h-[200px] text-gray-400 text-sm">この期間の取引データはありません</div>
         ) : (
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-100 sticky top-0 z-10 text-xs font-semibold text-slate-500 shadow-sm">
+          <table className="w-full text-sm text-left whitespace-nowrap">
+            <thead className="bg-white border-b-2 border-slate-100 text-slate-500 text-xs tracking-wider">
               <tr>
-                <th className="px-4 py-3 border-b border-slate-200 w-32">日付</th>
-                <th className="px-4 py-3 border-b border-slate-200 text-center w-20">ステータス</th>
-                <th className="px-4 py-3 border-b border-slate-200 text-right w-32 bg-slate-50">借方金額</th>
-                <th className="px-4 py-3 border-b border-slate-200 text-right w-32 bg-slate-50">貸方金額</th>
-                <th className="px-4 py-3 border-b border-slate-200 text-center w-16">借/貸</th>
-                <th className="px-4 py-3 border-b border-slate-200 text-right w-32 bg-indigo-50/10">残高</th>
+                <th className="px-5 py-4 font-semibold">日付</th>
+                <th className="px-5 py-4 font-semibold">摘要</th>
+                <th className="px-5 py-4 font-semibold text-center">状態</th>
+                <th className="px-5 py-4 font-semibold text-right">借方金額</th>
+                <th className="px-5 py-4 font-semibold text-right">貸方金額</th>
+                <th className="px-5 py-4 font-semibold text-center">借/貸</th>
+                <th className="px-5 py-4 font-semibold text-right">残高</th>
               </tr>
             </thead>
-            <tbody className="text-sm text-slate-700 divide-y divide-slate-100">
+            <tbody className="bg-white">
               {ledgerData.map((row) => (
-                <tr key={row.id} className="hover:bg-indigo-50/30 transition-colors group">
-                  <td className="px-4 py-2.5 font-mono text-slate-500 text-xs">{row.date}</td>
-                  <td className="px-4 py-2.5 text-center text-xs">
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${row.status === 'posted' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                      {row.status === 'posted' ? '確定' : '下書'}
+                <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                  <td className="px-5 py-4 text-slate-700">{row.date}</td>
+                  <td className="px-5 py-4 text-slate-700 truncate max-w-[250px]" title={row.description}>{row.description}</td>
+                  <td className="px-5 py-4 text-center">
+                    <span className={`text-xs px-2 py-1 rounded-full ${row.status === 'posted' ? 'bg-slate-100 text-slate-600' : 'bg-slate-50 text-slate-400'}`}>
+                      {row.status === 'posted' ? 'Standard' : 'Draft'}
                     </span>
                   </td>
-                  <td className="px-4 py-2.5 text-right font-mono bg-slate-50/30">{formatCurrency(row.debit)}</td>
-                  <td className="px-4 py-2.5 text-right font-mono bg-slate-50/30">{formatCurrency(row.credit)}</td>
-                  <td className="px-4 py-2.5 text-center text-xs">{row.type}</td>
-                  <td className="px-4 py-2.5 text-right font-mono font-bold text-slate-800 bg-indigo-50/5">{formatCurrency(row.balance)}</td>
+                  <td className="px-5 py-4 text-right text-slate-700">{formatCurrency(row.debit)}</td>
+                  <td className="px-5 py-4 text-right text-slate-700">{formatCurrency(row.credit)}</td>
+                  <td className="px-5 py-4 text-center text-slate-700">{row.type}</td>
+                  <td className="px-5 py-4 text-right text-slate-800 font-bold">{formatCurrency(row.balance)}</td>
                 </tr>
               ))}
             </tbody>

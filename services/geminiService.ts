@@ -470,42 +470,47 @@ const expenseDraftSchema = {
 const extractInvoiceSchema = {
   type: Type.OBJECT,
   properties: {
-    vendorName: { type: Type.STRING, description: "請求書の発行元企業名。" },
-    invoiceDate: {
-      type: Type.STRING,
-      description: "請求書の発行日 (YYYY-MM-DD形式)。",
-    },
-    dueDate: { type: Type.STRING, description: "支払期日。" },
-    totalAmount: { type: Type.NUMBER, description: "請求書の合計金額（税込）。" },
+    // 書類メタ
+    documentType: { type: Type.STRING, description: "書類種別 (請求書, 納品書, 見積書, 稟議書 等)。" },
+    // 発行元（請求元）
+    vendorName: { type: Type.STRING, description: "請求書の発行元（請求元）企業名。" },
+    registrationNumber: { type: Type.STRING, description: "インボイス登録番号 (T始まり)。" },
+    vendorPostalCode: { type: Type.STRING, description: "請求元の郵便番号。" },
+    vendorAddress: { type: Type.STRING, description: "請求元の住所。" },
+    vendorContact: { type: Type.STRING, description: "請求元の連絡先 (TEL/FAX等)。" },
+    // 宛先（請求先）
+    recipientName: { type: Type.STRING, description: "請求先（宛先）の名称。" },
+    recipientPostalCode: { type: Type.STRING, description: "請求先の郵便番号。" },
+    recipientAddress: { type: Type.STRING, description: "請求先の住所。" },
+    recipientContact: { type: Type.STRING, description: "請求先の連絡先。" },
+    // 日付
+    invoiceDate: { type: Type.STRING, description: "発行日 (YYYY-MM-DD形式)。" },
+    closingDate: { type: Type.STRING, description: "締日 (YYYY-MM-DD形式)。" },
+    dueDate: { type: Type.STRING, description: "支払期限 (YYYY-MM-DD形式)。" },
+    // 金額
     subtotalAmount: { type: Type.NUMBER, description: "税抜金額。" },
     taxAmount: { type: Type.NUMBER, description: "消費税額。" },
+    totalAmount: { type: Type.NUMBER, description: "税込合計金額。" },
     taxInclusive: {
       type: Type.BOOLEAN,
-      description: "請求書に記載されている金額が税込かどうか。請求書に『税込』『税込価格』『内税』などの表記があればtrue、『税抜』『別途消費税』『外税』などの表記があればfalse。表記がない場合、合計金額と税抜金額の関係から判定してください。"
+      description: "金額が税込表示ならtrue。『税込』『内税』→true、『税抜』『外税』→false。"
     },
+    withholdingTax: { type: Type.NUMBER, description: "源泉徴収税額。" },
+    discountOffset: { type: Type.NUMBER, description: "値引き・繰越相殺額。" },
+    netAmount: { type: Type.NUMBER, description: "差引請求額（実際の支払額）。" },
+    // 分類
     description: { type: Type.STRING, description: "請求内容の簡潔な説明。" },
-    costType: {
-      type: Type.STRING,
-      description: "この費用が変動費(V)か固定費(F)かを推測してください。",
-      enum: ["V", "F"],
-    },
-    account: {
-      type: Type.STRING,
-      description:
-        "この請求内容に最も適した会計勘定科目を提案してください。例: 仕入高, 広告宣伝費, 事務用品費",
-    },
-    relatedCustomer: {
-      type: Type.STRING,
-      description: "この費用に関連する顧客名（もしあれば）。",
-    },
-    project: {
-      type: Type.STRING,
-      description: "この費用に関連する案件名やプロジェクト名（もしあれば）。",
-    },
-    registrationNumber: { type: Type.STRING, description: "請求書に記載の登録番号。" },
-    paymentRecipientName: { type: Type.STRING, description: "請求書に記載された支払先名。" },
+    costType: { type: Type.STRING, description: "変動費(V)か固定費(F)か。", enum: ["V", "F"] },
+    account: { type: Type.STRING, description: "最適な会計勘定科目。例: 仕入高, 広告宣伝費, 修繕費, 消耗品費, 外注加工費, 保守費, 通信費" },
+    relatedCustomer: { type: Type.STRING, description: "関連する顧客名（もしあれば）。" },
+    project: { type: Type.STRING, description: "関連する案件/プロジェクト名（もしあれば）。" },
+    // 振込先
     bankAccount: bankAccountSchema,
+    bankAccountRaw: { type: Type.STRING, description: "振込先の原文テキスト（銀行名・支店名・口座番号等をそのまま）。" },
+    // 明細
     lineItems: { type: Type.ARRAY, items: expenseLineSchema },
+    // 備考
+    notes: { type: Type.STRING, description: "備考欄や特記事項。" },
   },
   required: [
     "vendorName",
@@ -526,16 +531,20 @@ export const extractInvoiceDetails = async (
     const imagePart = { inlineData: { data: imageBase64, mimeType } };
     const textPart = {
       text:
-        `この画像から請求書の詳細情報をJSONで抽出してください。
-以下のルールに厳格に従ってください：
-1. 説明や挨拶は不要です。純粋なJSONのみを返してください。
-2. 税込か税抜かの判定(taxInclusive)を必ず行ってください。
-   - 請求書に『税込』『内税』などの表記、または合計金額が税抜+税額と一致していれば true
-   - 『税抜』『外税』『別途消費税』などの表記があれば false
-3. インボイス制度の登録番号(registrationNumber)があれば抽出してください。
-4. 振込先銀行口座情報(bankAccount)も可能な限り抽出してください。
-5. 明細行(lineItems)は個別に抽出してください。
-6. 合計金額(totalAmount)、税抜金額(subtotalAmount)、消費税額(taxAmount)をそれぞれ抽出してください。`,
+        `この画像から請求書・納品書・見積書等の詳細情報をJSONで抽出してください。
+
+厳格なルール：
+1. 純粋なJSONのみを返す。説明・挨拶は不要。
+2. 書類種別(documentType): 請求書/納品書/見積書/稟議書 等を判定。
+3. 請求元情報: vendorName, registrationNumber(T始まりのインボイス番号), vendorPostalCode, vendorAddress, vendorContact を全て抽出。
+4. 請求先情報: recipientName, recipientPostalCode, recipientAddress, recipientContact を全て抽出。
+5. 日付: invoiceDate(発行日), closingDate(締日), dueDate(支払期限) をYYYY-MM-DD形式で。
+6. 金額: subtotalAmount(税抜), taxAmount(消費税), totalAmount(税込合計), withholdingTax(源泉徴収税), discountOffset(値引き・繰越相殺), netAmount(差引請求額=実支払額)。
+7. taxInclusive: 税込表示ならtrue。
+8. 振込先: bankAccount(構造化) + bankAccountRaw(原文テキストそのまま)。
+9. 明細行(lineItems): 各行の品名・数量・単価・金額を個別に抽出。
+10. account: 請求内容に最適な勘定科目を提案 (仕入高/広告宣伝費/修繕費/消耗品費/外注加工費/保守費/通信費/支払手数料/旅費交通費 等)。
+11. notes: 備考・特記事項があれば抽出。`,
     };
     const response = await ai.models.generateContent({
       model: invoiceOcrModel,
@@ -572,44 +581,60 @@ export const extractInvoiceDetails = async (
         return Number(str) || 0;
       };
 
-      // AI出力を期待する形式にマッピング
-      const totalAmount = removeCurrency(parsed.amount_due || parsed.total_billed_amount || parsed.total_amount_due || parsed.total_amount_at_headline);
-      const subtotalAmount = removeCurrency(parsed.subtotals?.subtotal_before_tax || parsed.breakdown?.subtotal || parsed.summary?.subtotal || parsed.subtotal);
-      const taxAmount = removeCurrency(parsed.subtotals?.tax || parsed.breakdown?.tax_amount || parsed.summary?.tax_amount || parsed.tax?.amount);
+      // スキーマが明示されているのでparsedは基本そのまま使える
+      // フォールバック: AI応答が旧形式の場合のみ変換
+      const totalAmount = removeCurrency(parsed.totalAmount ?? parsed.amount_due ?? parsed.total_amount);
+      const subtotalAmount = removeCurrency(parsed.subtotalAmount ?? parsed.subtotal ?? 0);
+      const taxAmount = removeCurrency(parsed.taxAmount ?? parsed.tax_amount ?? 0);
+      const withholdingTax = removeCurrency(parsed.withholdingTax ?? 0);
+      const discountOffset = removeCurrency(parsed.discountOffset ?? 0);
+      const netAmount = removeCurrency(parsed.netAmount ?? 0);
 
-      // taxInclusiveの判定: AIからの値を優先し、なければ金額から推測
-      let taxInclusive = parsed.taxInclusive ?? parsed.tax_inclusive;
+      let taxInclusive = parsed.taxInclusive;
       if (taxInclusive === undefined && totalAmount && subtotalAmount && taxAmount) {
-        // 合計金額が税抜+税額と一致すれば税込、税抜と一致すれば税抜
         taxInclusive = Math.abs(totalAmount - (subtotalAmount + taxAmount)) < 1;
       }
 
-      const mapped = {
-        vendorName: parsed.sender_info?.name || parsed.issuer?.company_name || parsed.vendor_info?.name || parsed.billing_party?.company_name || parsed.invoice_title || '',
-        invoiceDate: convertJapaneseDate(parsed.invoice_date || parsed.issue_date || ''),
-        dueDate: convertJapaneseDate(parsed.due_date || parsed.payment_due_date || ''),
-        totalAmount,
+      const mapped: InvoiceData = {
+        documentType: parsed.documentType || '請求書',
+        vendorName: parsed.vendorName || parsed.sender_info?.name || '',
+        registrationNumber: parsed.registrationNumber || '',
+        vendorPostalCode: parsed.vendorPostalCode || '',
+        vendorAddress: parsed.vendorAddress || '',
+        vendorContact: parsed.vendorContact || '',
+        recipientName: parsed.recipientName || parsed.recipient_info?.name || '',
+        recipientPostalCode: parsed.recipientPostalCode || '',
+        recipientAddress: parsed.recipientAddress || '',
+        recipientContact: parsed.recipientContact || '',
+        invoiceDate: convertJapaneseDate(parsed.invoiceDate || parsed.invoice_date || ''),
+        closingDate: convertJapaneseDate(parsed.closingDate || ''),
+        dueDate: convertJapaneseDate(parsed.dueDate || parsed.due_date || ''),
         subtotalAmount,
         taxAmount,
-        taxInclusive: taxInclusive ?? true, // デフォルトは税込とする（日本の一般的な請求書は税込表示が多い）
-        registrationNumber: parsed.issuer?.registration_number || parsed.registration_number || parsed.sender_info?.registration_number || parsed.vendor_info?.registration_number || '',
-        description: parsed.invoice_title || '',
-        relatedCustomer: parsed.recipient_info?.name || parsed.customer?.company_name || parsed.customer_info?.name || parsed.billed_party?.company_name || '',
-        costType: parsed.costType || parsed.cost_type || 'V',
+        totalAmount,
+        taxInclusive: taxInclusive ?? true,
+        withholdingTax,
+        discountOffset,
+        netAmount: netAmount || totalAmount,
+        description: parsed.description || '',
+        costType: parsed.costType || 'V',
         account: parsed.account || '仕入高',
-        lineItems: parsed.items?.map((item: any) => ({
+        relatedCustomer: parsed.relatedCustomer || '',
+        project: parsed.project || '',
+        bankAccount: parsed.bankAccount || undefined,
+        bankAccountRaw: parsed.bankAccountRaw || '',
+        lineItems: (parsed.lineItems || parsed.line_items || parsed.items || []).map((item: any) => ({
           description: item.description || item.item_name || '',
-          quantity: removeCurrency(item.quantity || 1),
-          unitPrice: removeCurrency(item.unit_price),
-          amountExclTax: removeCurrency(item.amount),
-          taxRate: 10
-        })) || parsed.line_items?.map((item: any) => ({
-          description: item.description || item.item_name || '',
-          quantity: removeCurrency(item.quantity || 1),
-          unitPrice: removeCurrency(item.unit_price),
-          amountExclTax: removeCurrency(item.amount),
-          taxRate: 10
-        })) || []
+          lineDate: convertJapaneseDate(item.lineDate || ''),
+          quantity: removeCurrency(item.quantity ?? 1),
+          unit: item.unit || '',
+          unitPrice: removeCurrency(item.unitPrice ?? item.unit_price ?? 0),
+          amountExclTax: removeCurrency(item.amountExclTax ?? item.amount ?? 0),
+          taxRate: item.taxRate ?? 10,
+          customerName: item.customerName || '',
+          projectName: item.projectName || '',
+        })),
+        notes: parsed.notes || '',
       };
 
       console.log('[extractInvoiceDetails] マッピング後:', mapped);

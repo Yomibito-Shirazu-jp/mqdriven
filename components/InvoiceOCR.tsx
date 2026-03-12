@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { extractInvoiceDetails } from '../services/geminiService';
 import { getInboxItems, addInboxItem, updateInboxItem, deleteInboxItem, uploadFile } from '../services/dataService';
 import { googleDriveService, GoogleDriveFile } from '../services/googleDriveService';
-import { InboxItem, InvoiceData, InboxItemStatus, Toast, ConfirmationDialogProps } from '../types';
+import { InboxItem, InvoiceData, InvoiceLineItem, InboxItemStatus, Toast, ConfirmationDialogProps } from '../types';
 import { Upload, Loader, X, CheckCircle, Save, Trash2, AlertTriangle, RefreshCw } from './Icons';
 
 interface InvoiceOCRProps {
@@ -105,8 +105,8 @@ const InboxItemCard: React.FC<{
         setIsApproving(false);
     };
 
-    const inputClass = "w-full text-base bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500";
-    const selectClass = "w-full text-base bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white rounded-lg p-2.5 focus:ring-blue-500 focus:border-blue-500";
+    const ro = item.status === 'approved';
+    const inputClass = "w-full text-sm bg-slate-50 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 text-slate-900 dark:text-white rounded-lg p-2 focus:ring-blue-500 focus:border-blue-500";
 
 
     return (
@@ -141,52 +141,138 @@ const InboxItemCard: React.FC<{
                     {item.status === 'processing' && <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-700/50 rounded-lg"><Loader className="w-8 h-8 animate-spin text-blue-500" /><p className="mt-2 text-slate-500">AIが解析中...</p></div>}
                     {item.status === 'error' && <div className="flex-1 flex flex-col items-center justify-center bg-red-50 dark:bg-red-900/30 rounded-lg p-4"><AlertTriangle className="w-8 h-8 text-red-500" /><p className="mt-2 text-red-700 dark:text-red-300 font-semibold">解析エラー</p><p className="text-sm text-red-600 dark:text-red-400 mt-1 text-center">{item.errorMessage}</p></div>}
                     {localData && (
-                        <div className="space-y-3">
-                            <div>
-                                <label htmlFor={`vendorName-${item.id}`} className="text-sm font-medium text-slate-600 dark:text-slate-300">発行元</label>
-                                <input id={`vendorName-${item.id}`} name="vendorName" type="text" value={localData.vendorName} onChange={handleChange} placeholder="発行元" className={inputClass} readOnly={item.status === 'approved'} />
-                            </div>
-                            <div>
-                                <label htmlFor={`invoiceDate-${item.id}`} className="text-sm font-medium text-slate-600 dark:text-slate-300">発行日</label>
-                                <input id={`invoiceDate-${item.id}`} name="invoiceDate" type="date" value={localData.invoiceDate} onChange={handleChange} placeholder="発行日" className={inputClass} readOnly={item.status === 'approved'} />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-3 max-h-[600px] overflow-y-auto pr-1">
+                            {/* 書類種別 + 登録番号 */}
+                            <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                    <label htmlFor={`totalAmount-${item.id}`} className="text-sm font-medium text-slate-600 dark:text-slate-300">合計金額 (税込)</label>
-                                    <div className="relative">
-                                        <input id={`totalAmount-${item.id}`} name="totalAmount" type="number" value={localData.totalAmount} onChange={handleChange} placeholder="合計金額" className={inputClass} readOnly={item.status === 'approved'} />
-                                    </div>
-                                    <div className="mt-2 flex items-center justify-between">
-                                        <span className="text-xs text-slate-500 dark:text-slate-400">計上設定:</span>
-                                        <label className="inline-flex items-center cursor-pointer">
-                                            <input 
-                                                type="checkbox" 
-                                                name="taxInclusive" 
-                                                checked={localData.taxInclusive || false} 
-                                                onChange={handleChange} 
-                                                className="sr-only peer"
-                                                disabled={item.status === 'approved'}
-                                            />
-                                            <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
-                                            <span className="ms-3 text-xs font-medium text-gray-900 dark:text-gray-300">
-                                                {localData.taxInclusive ? '内税 (税込)' : '外税 (税抜)'}
-                                            </span>
-                                        </label>
-                                    </div>
+                                    <label className="text-xs font-medium text-slate-500">書類種別</label>
+                                    <input name="documentType" type="text" value={localData.documentType || ''} onChange={handleChange} className={inputClass} readOnly={ro} />
                                 </div>
                                 <div>
-                                    <label htmlFor={`costType-${item.id}`} className="text-sm font-medium text-slate-600 dark:text-slate-300">勘定科目 (自動照合)</label>
-                                    <input id={`account-${item.id}`} name="account" type="text" value={localData.account || ''} onChange={handleChange} placeholder="勘定科目" className={inputClass} readOnly={item.status === 'approved'} />
-                                    <div className="mt-2 text-xs flex gap-2">
-                                        <span className={`px-2 py-0.5 rounded ${localData.costType === 'V' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
-                                            {localData.costType === 'V' ? '変動費' : '固定費'}
-                                        </span>
-                                    </div>
+                                    <label className="text-xs font-medium text-slate-500">登録番号</label>
+                                    <input name="registrationNumber" type="text" value={localData.registrationNumber || ''} onChange={handleChange} className={inputClass} readOnly={ro} />
                                 </div>
                             </div>
+                            {/* 請求元 */}
+                            <fieldset className="border border-slate-200 dark:border-slate-700 rounded-lg p-2 space-y-2">
+                                <legend className="text-xs font-bold text-slate-500 px-1">請求元</legend>
+                                <input name="vendorName" type="text" value={localData.vendorName || ''} onChange={handleChange} placeholder="企業名" className={inputClass} readOnly={ro} />
+                                <div className="grid grid-cols-3 gap-2">
+                                    <input name="vendorPostalCode" type="text" value={localData.vendorPostalCode || ''} onChange={handleChange} placeholder="〒" className={inputClass} readOnly={ro} />
+                                    <input name="vendorAddress" type="text" value={localData.vendorAddress || ''} onChange={handleChange} placeholder="住所" className={`${inputClass} col-span-2`} readOnly={ro} />
+                                </div>
+                                <input name="vendorContact" type="text" value={localData.vendorContact || ''} onChange={handleChange} placeholder="TEL/FAX" className={inputClass} readOnly={ro} />
+                            </fieldset>
+                            {/* 請求先 */}
+                            <fieldset className="border border-slate-200 dark:border-slate-700 rounded-lg p-2 space-y-2">
+                                <legend className="text-xs font-bold text-slate-500 px-1">請求先</legend>
+                                <input name="recipientName" type="text" value={localData.recipientName || ''} onChange={handleChange} placeholder="宛先名" className={inputClass} readOnly={ro} />
+                                <div className="grid grid-cols-3 gap-2">
+                                    <input name="recipientPostalCode" type="text" value={localData.recipientPostalCode || ''} onChange={handleChange} placeholder="〒" className={inputClass} readOnly={ro} />
+                                    <input name="recipientAddress" type="text" value={localData.recipientAddress || ''} onChange={handleChange} placeholder="住所" className={`${inputClass} col-span-2`} readOnly={ro} />
+                                </div>
+                            </fieldset>
+                            {/* 日付 */}
+                            <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">発行日</label>
+                                    <input name="invoiceDate" type="date" value={localData.invoiceDate || ''} onChange={handleChange} className={inputClass} readOnly={ro} />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">締日</label>
+                                    <input name="closingDate" type="date" value={localData.closingDate || ''} onChange={handleChange} className={inputClass} readOnly={ro} />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">支払期限</label>
+                                    <input name="dueDate" type="date" value={localData.dueDate || ''} onChange={handleChange} className={inputClass} readOnly={ro} />
+                                </div>
+                            </div>
+                            {/* 金額 */}
+                            <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">税抜金額</label>
+                                    <input name="subtotalAmount" type="number" value={localData.subtotalAmount ?? ''} onChange={handleChange} className={inputClass} readOnly={ro} />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">消費税</label>
+                                    <input name="taxAmount" type="number" value={localData.taxAmount ?? ''} onChange={handleChange} className={inputClass} readOnly={ro} />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">税込合計</label>
+                                    <input name="totalAmount" type="number" value={localData.totalAmount ?? ''} onChange={handleChange} className={`${inputClass} font-bold`} readOnly={ro} />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">源泉徴収税</label>
+                                    <input name="withholdingTax" type="number" value={localData.withholdingTax ?? ''} onChange={handleChange} className={inputClass} readOnly={ro} />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">値引/相殺</label>
+                                    <input name="discountOffset" type="number" value={localData.discountOffset ?? ''} onChange={handleChange} className={inputClass} readOnly={ro} />
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">差引請求額</label>
+                                    <input name="netAmount" type="number" value={localData.netAmount ?? ''} onChange={handleChange} className={`${inputClass} font-bold text-blue-700`} readOnly={ro} />
+                                </div>
+                            </div>
+                            {/* 税込/税抜 + 勘定科目 */}
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="flex items-center gap-2">
+                                    <label className="inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" name="taxInclusive" checked={localData.taxInclusive || false} onChange={handleChange} className="sr-only peer" disabled={ro} />
+                                        <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                        <span className="ms-2 text-xs font-medium text-gray-900 dark:text-gray-300">{localData.taxInclusive ? '内税' : '外税'}</span>
+                                    </label>
+                                    <span className={`px-2 py-0.5 rounded text-xs ${localData.costType === 'V' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                        {localData.costType === 'V' ? '変動費' : '固定費'}
+                                    </span>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-slate-500">勘定科目</label>
+                                    <input name="account" type="text" value={localData.account || ''} onChange={handleChange} placeholder="勘定科目" className={inputClass} readOnly={ro} />
+                                </div>
+                            </div>
+                            {/* 内容 */}
                             <div>
-                                <label htmlFor={`description-${item.id}`} className="text-sm font-medium text-slate-600 dark:text-slate-300">内容 / 備考</label>
-                                <textarea id={`description-${item.id}`} name="description" value={localData.description} onChange={handleChange} placeholder="内容" rows={2} className={inputClass} readOnly={item.status === 'approved'} />
+                                <label className="text-xs font-medium text-slate-500">内容</label>
+                                <textarea name="description" value={localData.description || ''} onChange={handleChange} rows={2} className={inputClass} readOnly={ro} />
+                            </div>
+                            {/* 振込先 */}
+                            <div>
+                                <label className="text-xs font-medium text-slate-500">振込先</label>
+                                <input name="bankAccountRaw" type="text" value={localData.bankAccountRaw || ''} onChange={handleChange} placeholder="銀行名 支店名 口座番号" className={inputClass} readOnly={ro} />
+                            </div>
+                            {/* 明細行 (読み取り専用表示) */}
+                            {localData.lineItems && localData.lineItems.length > 0 && (
+                                <details className="border border-slate-200 dark:border-slate-700 rounded-lg">
+                                    <summary className="text-xs font-bold text-slate-500 px-3 py-2 cursor-pointer hover:bg-slate-50">明細 ({localData.lineItems.length}件)</summary>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-xs">
+                                            <thead className="bg-slate-50 dark:bg-slate-700"><tr>
+                                                <th className="px-2 py-1 text-left">品名</th>
+                                                <th className="px-2 py-1 text-right">数量</th>
+                                                <th className="px-2 py-1 text-right">単価</th>
+                                                <th className="px-2 py-1 text-right">金額</th>
+                                            </tr></thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {localData.lineItems.map((li: InvoiceLineItem, idx: number) => (
+                                                    <tr key={idx}>
+                                                        <td className="px-2 py-1">{li.description}</td>
+                                                        <td className="px-2 py-1 text-right">{li.quantity}{li.unit ? ` ${li.unit}` : ''}</td>
+                                                        <td className="px-2 py-1 text-right">{li.unitPrice?.toLocaleString()}</td>
+                                                        <td className="px-2 py-1 text-right font-medium">{li.amountExclTax?.toLocaleString()}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </details>
+                            )}
+                            {/* 備考 */}
+                            <div>
+                                <label className="text-xs font-medium text-slate-500">備考</label>
+                                <textarea name="notes" value={localData.notes || ''} onChange={handleChange} rows={1} className={inputClass} readOnly={ro} />
                             </div>
                         </div>
                     )}
@@ -202,6 +288,93 @@ const InboxItemCard: React.FC<{
             </div>
         </div>
     );
+};
+
+/** CSVテキストをInvoiceData[]にパースする */
+const parseInvoiceCsv = (csvText: string): InvoiceData[] => {
+    const lines = csvText.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length < 2) return [];
+    // ヘッダー行をパース（BOM除去）
+    const header = lines[0].replace(/^\uFEFF/, '');
+    const cols = header.split(',');
+    const ci = (name: string) => cols.indexOf(name);
+
+    const parseNum = (v: string | undefined): number => {
+        if (!v) return 0;
+        return Number(v.replace(/[",円\s]/g, '')) || 0;
+    };
+
+    const parseDate = (v: string | undefined): string => {
+        if (!v) return '';
+        // YYYY/MM/DD → YYYY-MM-DD
+        return v.replace(/\//g, '-').trim();
+    };
+
+    const results: InvoiceData[] = [];
+    for (let i = 1; i < lines.length; i++) {
+        // CSV行を分割（カンマ区切りだがダブルクォート内のカンマは無視）
+        const row: string[] = [];
+        let cur = '';
+        let inQuote = false;
+        for (const ch of lines[i]) {
+            if (ch === '"') { inQuote = !inQuote; continue; }
+            if (ch === ',' && !inQuote) { row.push(cur.trim()); cur = ''; continue; }
+            cur += ch;
+        }
+        row.push(cur.trim());
+
+        const get = (name: string): string => {
+            const idx = ci(name);
+            return idx >= 0 && idx < row.length ? row[idx] : '';
+        };
+
+        // 明細行を組み立て
+        const lineItems: InvoiceLineItem[] = [];
+        for (let n = 1; n <= 10; n++) {
+            const desc = get(`明細${n}品名`);
+            if (!desc) continue;
+            lineItems.push({
+                description: desc,
+                quantity: parseNum(get(`明細${n}数量`)) || undefined,
+                unitPrice: parseNum(get(`明細${n}単価`)) || undefined,
+                amountExclTax: parseNum(get(`明細${n}金額`)) || undefined,
+            });
+        }
+
+        const inv: InvoiceData = {
+            imageNo: get('画像No'),
+            documentType: get('書類種別') || '請求書',
+            invoiceDate: parseDate(get('発行日')),
+            closingDate: parseDate(get('締日')),
+            dueDate: parseDate(get('支払期限')),
+            vendorName: get('請求元名称'),
+            registrationNumber: get('請求元登録番号'),
+            vendorPostalCode: get('請求元郵便番号'),
+            vendorAddress: get('請求元住所'),
+            vendorContact: get('請求元連絡先'),
+            recipientName: get('請求先名称'),
+            recipientPostalCode: get('請求先郵便番号'),
+            recipientAddress: get('請求先住所'),
+            recipientContact: get('請求先連絡先'),
+            subtotalAmount: parseNum(get('税抜金額')),
+            taxAmount: parseNum(get('消費税額')),
+            totalAmount: parseNum(get('税込合計')),
+            withholdingTax: parseNum(get('源泉徴収税')),
+            discountOffset: parseNum(get('値引き・繰越相殺')),
+            netAmount: parseNum(get('差引請求額')),
+            bankAccountRaw: get('振込先'),
+            notes: get('備考'),
+            lineItems,
+            taxInclusive: true,
+            costType: 'V',
+            account: '',
+            description: lineItems.length > 0 ? lineItems[0].description || '' : '',
+        };
+        // 差引請求額がなければ税込合計をセット
+        if (!inv.netAmount) inv.netAmount = inv.totalAmount;
+        results.push(inv);
+    }
+    return results;
 };
 
 const InvoiceOCR: React.FC<InvoiceOCRProps> = ({ onSaveExpenses, addToast, requestConfirmation, isAIOff }) => {
@@ -419,13 +592,45 @@ const InvoiceOCR: React.FC<InvoiceOCRProps> = ({ onSaveExpenses, addToast, reque
                         {isAIOff && <p className="text-sm text-red-500 dark:text-red-400 ml-4">AI機能無効のため、OCR機能は利用できません。</p>}
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-3">
+                        <label className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white bg-amber-600 hover:bg-amber-700 cursor-pointer">
+                            CSV一括インポート
+                            <input type="file" accept=".csv,text/csv" className="sr-only" onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                e.target.value = '';
+                                try {
+                                    const text = await file.text();
+                                    const invoices = parseInvoiceCsv(text);
+                                    if (invoices.length === 0) {
+                                        addToast('CSVに有効なデータが見つかりませんでした。', 'error');
+                                        return;
+                                    }
+                                    // CSVデータをInboxItemとして追加
+                                    for (const inv of invoices) {
+                                        const tempItem: Omit<InboxItem, 'id' | 'createdAt' | 'fileUrl'> = {
+                                            fileName: `CSV-${inv.imageNo || inv.vendorName || 'unknown'}.csv`,
+                                            filePath: '',
+                                            mimeType: 'text/csv',
+                                            status: InboxItemStatus.PendingReview,
+                                            extractedData: inv,
+                                            errorMessage: null,
+                                        };
+                                        await addInboxItem(tempItem);
+                                    }
+                                    await loadItems();
+                                    addToast(`${invoices.length}件の請求書をCSVからインポートしました。`, 'success');
+                                } catch (err: any) {
+                                    addToast(`CSVインポートに失敗: ${err.message}`, 'error');
+                                }
+                            }} />
+                        </label>
                         <button
                             type="button"
                             onClick={handleDriveModalOpen}
                             disabled={isDriveLoading || isDriveImporting || isAIOff}
                             className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white ${isDriveLoading || isDriveImporting || isAIOff ? 'bg-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-700'}`}
                         >
-                            📁 Google Driveから追加
+                            Google Driveから追加
                         </button>
                         {(isDriveLoading || isDriveImporting) && (
                             <span className="text-xs text-slate-500 dark:text-slate-400">
