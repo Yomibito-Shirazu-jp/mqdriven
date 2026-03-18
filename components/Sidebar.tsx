@@ -71,7 +71,6 @@ const BASE_NAV_CATEGORIES: NavCategoryType[] = [
     items: [
       { page: 'purchasing_invoices', name: '請求書インポート', badge: 0, icon: Upload },
       { page: 'accounting_approved_applications', name: '承認済一覧' },
-      { page: 'accounting_journal_review', name: '案件予算分析' },
       { page: 'accounting_journal', name: '仕訳帳' },
       { page: 'accounting_general_ledger', name: '総勘定元帳' },
       { page: 'accounting_payables', name: '買掛管理' },
