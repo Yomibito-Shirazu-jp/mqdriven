@@ -28,29 +28,13 @@ interface EstimateItem {
 
 interface Estimate {
   id: string;
-  documentNumber: string;
-  documentType: 'estimate' | 'invoice';
-  status: 'draft' | 'sent' | 'accepted' | 'rejected' | 'cancelled' | 'paid' | 'overdue';
-  customerName: string;
-  customerEmail: string;
-  customerPhone: string;
-  customerAddress: string;
-  subtotal: number;
-  taxRate: number;
-  taxAmount: number;
-  totalAmount: number;
-  issueDate: string;
-  dueDate?: string;
-  validUntil?: string;
-  title: string;
-  content: EstimateItem[];
-  notes: string;
-  emailSentAt?: string;
-  emailOpenedAt?: string;
-  emailOpenCount: number;
-  createdBy: string;
-  createdAt: string;
-  updatedAt: string;
+  estimatesId: string;
+  specification: string;
+  total: number;
+  status: string;
+  createDate: string;
+  createId: string;
+  patternName: string;
 }
 
 export default function EstimateListPage() {
@@ -67,49 +51,30 @@ export default function EstimateListPage() {
     try {
       const supabase = createSupabaseBrowser();
       const { data, error } = await supabase
-        .from('estimate_invoices')
-        .select('*')
-        .eq('document_type', 'estimate')
-        .order('created_at', { ascending: false });
+        .from('estimates')
+        .select('id, estimates_id, specification, total, status, create_date, create_id, pattern_name')
+        .order('create_date', { ascending: false });
 
       if (error) {
-        console.error('見積もり取得エラー:', error);
-        // エラー時は空の配列を表示
+        console.error('見積取得エラー:', error);
         setEstimates([]);
         setFilteredEstimates([]);
       } else {
-        // データベースのデータをEstimate型に変換
-        const formattedEstimates: Estimate[] = data.map(item => ({
+        const formattedEstimates: Estimate[] = (data || []).map(item => ({
           id: item.id,
-          documentNumber: item.document_number,
-          documentType: item.document_type,
-          status: item.status,
-          customerName: item.customer_name,
-          customerEmail: item.customer_email,
-          customerPhone: item.customer_phone,
-          customerAddress: item.customer_address,
-          subtotal: item.subtotal,
-          taxRate: item.tax_rate,
-          taxAmount: item.tax_amount,
-          totalAmount: item.total_amount,
-          issueDate: item.issue_date,
-          dueDate: item.due_date,
-          validUntil: item.valid_until,
-          title: item.title,
-          content: item.content || [],
-          notes: item.notes,
-          emailSentAt: item.email_sent_at,
-          emailOpenedAt: item.email_opened_at,
-          emailOpenCount: item.email_open_count || 0,
-          createdBy: item.created_by,
-          createdAt: item.created_at,
-          updatedAt: item.updated_at
+          estimatesId: item.estimates_id || '-',
+          specification: item.specification || '-',
+          total: Number(item.total) || 0,
+          status: item.status || '0',
+          createDate: item.create_date ? item.create_date.slice(0, 10) : '-',
+          createId: item.create_id || '-',
+          patternName: item.pattern_name || '',
         }));
         setEstimates(formattedEstimates);
         setFilteredEstimates(formattedEstimates);
       }
     } catch (error) {
-      console.error('見積もり取得エラー:', error);
+      console.error('見積取得エラー:', error);
       setEstimates([]);
       setFilteredEstimates([]);
     }
@@ -126,8 +91,9 @@ export default function EstimateListPage() {
     
     if (searchTerm) {
       filtered = filtered.filter(estimate => 
-        estimate.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        estimate.documentNumber.toLowerCase().includes(searchTerm.toLowerCase())
+        estimate.specification.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        estimate.estimatesId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        estimate.patternName.toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
     
@@ -153,6 +119,9 @@ export default function EstimateListPage() {
 
   const getStatusText = (status: string) => {
     switch (status) {
+      case "0": return "下書き"
+      case "1": return "送付済"
+      case "2": return "受注済"
       case "draft": return "下書き"
       case "sent": return "送付済"
       case "accepted": return "受注済"
@@ -235,10 +204,10 @@ export default function EstimateListPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>見積番号</TableHead>
-                      <TableHead>顧客名</TableHead>
-                      <TableHead>ステータス</TableHead>
+                      <TableHead>No.</TableHead>
+                      <TableHead>件名</TableHead>
                       <TableHead>金額</TableHead>
+                      <TableHead>ステータス</TableHead>
                       <TableHead>作成日</TableHead>
                       <TableHead>操作</TableHead>
                     </TableRow>
@@ -246,49 +215,33 @@ export default function EstimateListPage() {
                   <TableBody>
                     {filteredEstimates.map((estimate) => (
                       <TableRow key={estimate.id} className="hover:bg-gray-50">
-                        <TableCell className="font-medium">{estimate.documentNumber}</TableCell>
+                        <TableCell className="font-medium text-xs text-gray-500">
+                          {estimate.estimatesId.slice(0, 8)}
+                        </TableCell>
                         <TableCell>
-                          <div>
-                            <div className="font-medium">{estimate.customerName}</div>
-                            <div className="text-sm text-gray-500">{estimate.customerEmail}</div>
+                          <div className="font-medium text-sm">
+                            {estimate.specification.length > 40
+                              ? estimate.specification.slice(0, 40) + '…'
+                              : estimate.specification}
                           </div>
+                          {estimate.patternName && (
+                            <div className="text-xs text-gray-400">{estimate.patternName}</div>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          ¥{estimate.total.toLocaleString()}
                         </TableCell>
                         <TableCell>
                           <Badge className={getStatusColor(estimate.status)}>
                             {getStatusText(estimate.status)}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right font-medium">
-                          ¥{estimate.totalAmount.toLocaleString()}
-                        </TableCell>
-                        <TableCell>{estimate.issueDate}</TableCell>
+                        <TableCell>{estimate.createDate}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            {estimate.status === 'draft' && (
-                              <Button size="sm" variant="outline">
-                                <Edit className="w-3 h-3 mr-1" />
-                                編集
-                              </Button>
-                            )}
                             <Button size="sm" variant="outline">
                               <Eye className="w-3 h-3 mr-1" />
                               詳細
-                            </Button>
-                            {estimate.status === 'draft' && (
-                              <Button size="sm" variant="outline">
-                                <Send className="w-3 h-3 mr-1" />
-                                送付
-                              </Button>
-                            )}
-                            {estimate.status === 'sent' && (
-                              <Button size="sm" variant="outline">
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                受注
-                              </Button>
-                            )}
-                            <Button size="sm" variant="outline" className="text-red-600 hover:text-red-700">
-                              <Trash2 className="w-3 h-3 mr-1" />
-                              削除
                             </Button>
                           </div>
                         </TableCell>
