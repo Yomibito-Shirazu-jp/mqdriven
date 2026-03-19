@@ -1,4 +1,4 @@
-﻿import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { submitApplication, saveApplicationDraft, getApplicationDraft, clearApplicationDraft, uploadFile, debugPaymentRecipientsWithServiceRole } from '../../services/dataService';
 import { extractInvoiceDetails } from '../../services/geminiService';
 import SMTPEmailService from '../../services/smtpEmailService';
@@ -492,11 +492,21 @@ const ExpenseReimbursementForm: React.FC<ExpenseReimbursementFormProps> = (props
         restoreDraft();
     }, [applicationCodeId, currentUser?.id, draftApplication, addToast]);
 
+    // When the user manually overrides totalGross, store it as a "pinned" value
+    // so that the header shows the invoice amount, not the line-computed amount.
+    const [pinnedTotalGross, setPinnedTotalGross] = useState<number | null>(null);
+
     const handleFieldChange = (field: keyof ExpenseInvoiceDraft, value: any) => {
         setInvoice(prev => {
-            if (field === 'totalNet' || field === 'taxAmount' || field === 'totalGross') {
-                // Totals are auto-calculated from line items to prevent double-taxing.
+            if (field === 'totalNet' || field === 'taxAmount') {
+                // These are always auto-calculated from line items.
                 return prev;
+            }
+            if (field === 'totalGross') {
+                // Allow user to manually set totalGross (pinned override)
+                const numVal = typeof value === 'number' ? value : Number(value) || 0;
+                setPinnedTotalGross(numVal);
+                return { ...prev, totalGross: numVal };
             }
             const updated = { ...prev, [field]: value };
 
@@ -683,10 +693,11 @@ const ExpenseReimbursementForm: React.FC<ExpenseReimbursementFormProps> = (props
                             description: item.description || '',
                             customerName: candidateCustomer || '',
                             customCustomerName: candidateCustomer || '',
-                            amountExclTax: isInclusiveLikely && item.amountExclTax ?
-                                // If tax-inclusive, convert to net amount
-                                Math.round((item.amountExclTax || 0) / (1 + (item.taxRate || 10) / 100)) :
-                                (item.amountExclTax || 0),
+                            // Use OCR amount as-is. isTaxInclusive flag controls
+                            // how computeLineTotals interprets the amount
+                            // (tax-inclusive → back-calculate net; tax-exclusive → add tax).
+                            // Do NOT double-convert here.
+                            amountExclTax: item.amountExclTax || 0,
                             quantity: item.quantity || 1,
                             unitPrice: item.unitPrice || 0,
                             taxRate: item.taxRate || 10,
@@ -714,15 +725,17 @@ const ExpenseReimbursementForm: React.FC<ExpenseReimbursementFormProps> = (props
                         ? Math.round((newDraft.taxAmount / newDraft.totalNet) * 100)
                         : 10;
 
+                    // Use the gross amount when tax-inclusive, net when tax-exclusive.
+                    // computeLineTotals handles the interpretation via isTaxInclusive flag.
+                    const lineAmount = isInclusiveLikely
+                        ? (newDraft.totalGross || newDraft.totalNet)
+                        : newDraft.totalNet;
                     newDraft.lines = [{
                         ...createEmptyLine(true),
                         description: itemDescription,
                         customerName: candidateCustomer || '',
                         customCustomerName: candidateCustomer || '',
-                        amountExclTax: isInclusiveLikely && newDraft.totalGross ?
-                            // If tax-inclusive, use the net amount instead of gross
-                            (newDraft.totalNet || Math.max(0, newDraft.totalGross - newDraft.taxAmount)) :
-                            newDraft.totalNet,
+                        amountExclTax: lineAmount,
                         taxRate: inferredTaxRate,
                         purposeType,
                         businessCategory,
@@ -751,12 +764,16 @@ const ExpenseReimbursementForm: React.FC<ExpenseReimbursementFormProps> = (props
                         ? Math.round((newDraft.taxAmount / inferredNet) * 100)
                         : 10;
 
+                    // For tax-inclusive, use totalGross directly; computeLineTotals will back-calc.
+                    const lineAmount2 = isInclusiveLikely
+                        ? newDraft.totalGross
+                        : inferredNet;
                     newDraft.lines = [{
                         ...createEmptyLine(true),
                         description: itemDescription,
                         customerName: candidateCustomer || '',
                         customCustomerName: candidateCustomer || '',
-                        amountExclTax: inferredNet,
+                        amountExclTax: lineAmount2,
                         taxRate: inferredTaxRate,
                         purposeType,
                         businessCategory,
@@ -1135,18 +1152,38 @@ const ExpenseReimbursementForm: React.FC<ExpenseReimbursementFormProps> = (props
                                             disabled={isDisabled}
                                         />
                                     </FormField>
-                                    <FormField label="税込合計" htmlFor="totalGross" isOcr={invoice.ocrExtractedFields.has('totalGross')}>
+                                    <FormField label="税込合計（請求金額）" htmlFor="totalGross" isOcr={invoice.ocrExtractedFields.has('totalGross')}>
                                         <input
                                             id="totalGross"
                                             type="number"
-                                            value={Math.round(computedTotals.gross)}
-                                            readOnly
-                                            className="w-full text-right rounded-md border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/40 cursor-not-allowed"
+                                            value={pinnedTotalGross !== null ? pinnedTotalGross : Math.round(computedTotals.gross)}
+                                            onChange={e => handleFieldChange('totalGross', numberFromInput(e.target.value))}
+                                            className={`w-full text-right rounded-md border-slate-300 dark:border-slate-600 font-bold text-lg ${
+                                                pinnedTotalGross !== null && Math.abs(pinnedTotalGross - computedTotals.gross) > 1
+                                                    ? 'bg-amber-50 dark:bg-amber-900/30 border-amber-400 dark:border-amber-600 text-amber-800 dark:text-amber-200'
+                                                    : ''
+                                            }`}
                                             disabled={isDisabled}
                                         />
                                     </FormField>
+                                    {pinnedTotalGross !== null && Math.abs(pinnedTotalGross - computedTotals.gross) > 1 && (
+                                        <div className="sm:col-span-3 flex items-center gap-2 p-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
+                                            <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                                            <p className="text-xs text-amber-700 dark:text-amber-300">
+                                                請求金額 ¥{pinnedTotalGross.toLocaleString()} と明細合計 ¥{Math.round(computedTotals.gross).toLocaleString()} に差額があります。
+                                                明細行の金額を調整するか、税区分（税込/税抜）を確認してください。
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setPinnedTotalGross(null)}
+                                                    className="ml-2 underline font-semibold text-amber-800 dark:text-amber-200 hover:text-amber-900"
+                                                >
+                                                    自動計算に戻す
+                                                </button>
+                                            </p>
+                                        </div>
+                                    )}
                                     <p className="sm:col-span-3 text-xs text-slate-500 dark:text-slate-400">
-                                        税抜合計・消費税・税込合計は明細から自動計算されます（編集不可）。
+                                        税抜合計・消費税は明細から自動計算されます。税込合計（請求金額）はOCR値を手動修正可能です。
                                     </p>
                                 </div>
                             </CardContent>
@@ -1172,6 +1209,7 @@ const ExpenseReimbursementForm: React.FC<ExpenseReimbursementFormProps> = (props
                                     jobs={jobs}
                                     isInternalExpense={isInternalExpense}
                                     accountItems={accountItems}
+                                    isTaxInclusive={invoice.isTaxInclusive ?? false}
                                 />
                             </CardContent>
                             <div className="p-4 sm:p-6 border-t border-slate-200 dark:border-slate-700 flex justify-end items-center gap-6 bg-slate-50/50 dark:bg-slate-800/30 rounded-b-xl">
@@ -1442,7 +1480,8 @@ const LineItemTable: React.FC<{
     jobs: Job[];
     isInternalExpense: boolean;
     accountItems: AccountItem[];
-}> = ({ lines, onLineChange, onAddLine, onRemoveLine, isDisabled, customers, jobs, isInternalExpense, accountItems }) => {
+    isTaxInclusive: boolean;
+}> = ({ lines, onLineChange, onAddLine, onRemoveLine, isDisabled, customers, jobs, isInternalExpense, accountItems, isTaxInclusive }) => {
     const inputClass =
         'w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 disabled:opacity-50 disabled:cursor-not-allowed';
     const selectClass = inputClass;
@@ -1608,7 +1647,7 @@ const LineItemTable: React.FC<{
                                 />
                             </div>
                             <div className="lg:col-span-2 space-y-1">
-                                <label className={labelClass}>金額(税抜)</label>
+                                <label className={labelClass}>金額{isTaxInclusive ? '(税込)' : '(税抜)'}</label>
                                 <input
                                     type="number"
                                     value={line.amountExclTax}
