@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { DollarSign, User, AlertCircle, CheckCircle, PieChart, Download, Calendar, Filter, ListFilter, Loader, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DollarSign, User, AlertCircle, CheckCircle, PieChart, Download, Calendar, Filter, ListFilter, Loader, ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react';
 import { ReceivableItem } from '../../types';
 import * as dataService from '../../services/dataService';
+import { copyTsvToClipboard } from '../../utils/exportToSpreadsheet';
 
 const STATUS_MAP = {
   outstanding: { text: '未回収', color: 'bg-red-100 text-red-800', icon: <AlertCircle className="w-3 h-3" /> },
@@ -70,7 +71,7 @@ const ReceivablesPage: React.FC = () => {
         <div className="flex justify-between items-center">
           <h2 className="font-bold text-lg text-slate-800">売掛金管理</h2>
           <div className="flex items-center gap-2">
-            {/* Actions can be added here */}
+            <CopyReceivablesButton receivables={receivables} />
           </div>
         </div>
         <div className="flex items-center gap-4 mt-3">
@@ -169,3 +170,26 @@ const ReceivablesPage: React.FC = () => {
 };
 
 export default ReceivablesPage;
+
+const CopyReceivablesButton: React.FC<{ receivables: ReceivableItem[] }> = ({ receivables }) => {
+  const [copied, setCopied] = React.useState(false);
+  const handleCopy = async () => {
+    const headers = ['得意先', 'カテゴリ', '金額', '入金済', '未回収残高', '発生日', '回収期日', 'ステータス'];
+    const rows = receivables.map(r => [
+      r.customer, r.category, r.amount, r.paidAmount,
+      r.amount - r.paidAmount, r.date, r.due, r.status,
+    ]);
+    const ok = await copyTsvToClipboard(headers, rows);
+    if (ok) { setCopied(true); setTimeout(() => setCopied(false), 2000); }
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      disabled={receivables.length === 0}
+      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition"
+    >
+      {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+      {copied ? 'コピー済' : 'スプレッドシート用コピー'}
+    </button>
+  );
+};

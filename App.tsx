@@ -192,6 +192,8 @@ import CashSchedulePage from './components/accounting/CashSchedule';
 import ExpenseAnalysisPage from './components/accounting/ExpenseAnalysisPage';
 import ProfitLossPage from './components/accounting/ProfitLossPage';
 import BalanceSheetPage from './components/accounting/BalanceSheetPage';
+import TaxSummaryPage from './components/accounting/TaxSummaryPage';
+import PeriodClosingPage from './components/accounting/PeriodClosingPage';
 import DocumentCreationHub from './components/DocumentCreationHub';
 import BulletinBoardPage from './components/BulletinBoardPage';
 import AIChatPage from './components/AIChatPage';
@@ -228,6 +230,11 @@ import FaxOcrIntakePage from './components/sales/FaxOcrIntakePage';
 import SalesPipelinePage from './components/sales/SalesPipelinePage';
 import ProjectManagementPage from './components/projects/ProjectManagementPage';
 import SettingsPage from './components/SettingsPage';
+import BillingManagement from './components/accounting/BillingManagement';
+import PaymentManagement from './components/accounting/PaymentManagement';
+import LaborCostManagement from './components/accounting/LaborCostManagement';
+import TrialBalancePage from './components/accounting/TrialBalancePage';
+import BugReportList from './components/admin/BugReportList';
 
 import * as dataService from './services/dataService';
 import * as geminiService from './services/geminiService';
@@ -1602,6 +1609,10 @@ const App: React.FC = () => {
                 return <ProfitLossPage />;
             case 'accounting_balance_sheet':
                 return <BalanceSheetPage />;
+            case 'accounting_tax_summary':
+                return <TaxSummaryPage />;
+            case 'accounting_period_closing':
+                return <PeriodClosingPage addToast={addToast} jobs={jobs || []} applications={applications || []} journalEntries={journalEntries || []} onNavigate={handleNavigate} />;
             case 'accounting_approved_applications':
                 return <ApprovedApplications notify={addToast} currentUserId={currentUser?.id} onNavigate={handleNavigate} />;
             case 'accounting_approved_unhandled':
@@ -1758,6 +1769,20 @@ const App: React.FC = () => {
                 return <ActionConsolePage />;
             case 'turnaround_plan':
                 return <TurnaroundPlanPage />;
+            case 'sales_pipeline':
+                return <SalesPipelinePage jobs={jobs || []} onUpdateJob={handleUpdateJob} onCardClick={(job) => { setSelectedJob(job); setJobDetailModalOpen(true); }} />;
+            case 'sales_billing':
+                return <BillingManagement jobs={jobs || []} onRefreshData={loadAllData} onMarkPaid={async (invoice) => { addToast('入金処理を実行しました。', 'success'); loadAllData(); }} />;
+            case 'project_management':
+                return <ProjectManagementPage projects={projects || []} onRefresh={loadAllData} isLoading={isLoading} />;
+            case 'purchasing_payments':
+                return <PaymentManagement journalEntries={journalEntries || []} onExecutePayment={async (supplier, amount) => { addToast(`${supplier} への ¥${amount.toLocaleString()} の支払処理を実行しました。`, 'success'); loadAllData(); }} />;
+            case 'hr_labor_cost':
+                return <LaborCostManagement employees={employees || []} />;
+            case 'fax_ocr_intake':
+                return <FaxOcrIntakePage currentUser={currentUser} addToast={addToast} onNavigateToOrders={() => handleNavigate('sales_orders')} onNavigateToEstimates={() => handleNavigate('sales_estimates')} customers={customers || []} paymentRecipients={paymentRecipients || []} />;
+            case 'accounting_trial_balance':
+                return <TrialBalancePage />;
             default:
                 return <PlaceholderPage title={PAGE_TITLES[currentPage] || currentPage} />;
         }

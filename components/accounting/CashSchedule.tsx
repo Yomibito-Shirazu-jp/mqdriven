@@ -8,9 +8,10 @@ import {
   ResponsiveContainer,
   ReferenceLine 
 } from 'recharts';
-import { CalendarClock, ChevronLeft, ChevronRight, Wallet, Loader } from 'lucide-react';
+import { CalendarClock, ChevronLeft, ChevronRight, Wallet, Loader, Copy, Check } from 'lucide-react';
 import { CashScheduleData } from '../../types';
 import * as dataService from '../../services/dataService';
+import { copyTsvToClipboard } from '../../utils/exportToSpreadsheet';
 
 export const CashSchedulePage: React.FC = () => {
   const [scheduleData, setScheduleData] = useState<CashScheduleData[]>([]);
@@ -65,6 +66,16 @@ export const CashSchedulePage: React.FC = () => {
   const netChange = monthlySummary.totalInflows - monthlySummary.totalOutflows;
 
   const formatCurrency = (val: number) => val.toLocaleString();
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyTsv = async () => {
+    const headers = ['日付', '前日残高', '入金額', '出金額', '当日残高'];
+    const rows = scheduleData.map(d => [
+      d.date, d.opening_balance, d.inflows, d.outflows, d.closing_balance,
+    ]);
+    const ok = await copyTsvToClipboard(headers, rows);
+    if (ok) { setCopied(true); setTimeout(() => setCopied(false), 2000); }
+  };
 
   return (
     <div className="space-y-6 flex flex-col h-full">
@@ -80,6 +91,14 @@ export const CashSchedulePage: React.FC = () => {
            </p>
         </div>
         <div className="flex items-center gap-4">
+            <button
+              onClick={handleCopyTsv}
+              disabled={scheduleData.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition"
+            >
+              {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+              {copied ? 'コピー済' : 'スプレッドシート用コピー'}
+            </button>
             <div className="flex items-center bg-white rounded-lg border border-slate-200 shadow-sm p-1">
                 <button onClick={() => changeMonth(-1)} className="p-2 hover:bg-slate-100 rounded transition text-slate-500">
                     <ChevronLeft className="w-4 h-4" />

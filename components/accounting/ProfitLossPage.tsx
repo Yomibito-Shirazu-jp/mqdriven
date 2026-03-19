@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Loader, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Loader, ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react';
 import { getFinancialStatements } from '../../services/dataService';
+import { copyTsvToClipboard } from '../../utils/exportToSpreadsheet';
 
 const ProfitLossPage: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
@@ -76,7 +77,25 @@ const ProfitLossPage: React.FC = () => {
   }, [data]);
 
   const fmt = (v: number) => `¥${v.toLocaleString()}`;
+  const fmtRaw = (v: number) => v.toLocaleString();
   const [y, m] = period.split('-').map(Number);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyTsv = async () => {
+    const headers = ['区分', '科目コード', '勘定科目', '金額'];
+    const rows = [
+      ...revenueRows.map(r => ['収益', r.code, r.name, r.amount]),
+      ['', '', '収益合計', totalRevenue],
+      ...expenseRows.map(r => ['費用', r.code, r.name, r.amount]),
+      ['', '', '費用合計', totalExpense],
+      ['', '', netIncome >= 0 ? '当期純利益' : '当期純損失', netIncome],
+    ];
+    const ok = await copyTsvToClipboard(headers, rows);
+    if (ok) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -84,10 +103,20 @@ const ProfitLossPage: React.FC = () => {
       <div className="p-4 border-b border-slate-200 bg-slate-50/50">
         <div className="flex justify-between items-center">
           <h2 className="font-bold text-lg text-slate-800">損益計算書</h2>
-          <div className="flex items-center gap-1">
-            <button onClick={() => shiftMonth(-1)} className="p-1.5 rounded hover:bg-slate-200 transition text-slate-500"><ChevronLeft className="w-4 h-4" /></button>
-            <input type="month" value={period} onChange={e => setPeriod(e.target.value)} className="px-3 py-1.5 bg-white border border-slate-300 rounded text-sm text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-40" />
-            <button onClick={() => shiftMonth(1)} className="p-1.5 rounded hover:bg-slate-200 transition text-slate-500"><ChevronRight className="w-4 h-4" /></button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleCopyTsv}
+              disabled={revenueRows.length === 0 && expenseRows.length === 0}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-sm text-slate-600 hover:bg-slate-100 disabled:opacity-40 transition"
+            >
+              {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+              {copied ? 'コピー済' : 'スプレッドシート用コピー'}
+            </button>
+            <div className="flex items-center gap-1">
+              <button onClick={() => shiftMonth(-1)} className="p-1.5 rounded hover:bg-slate-200 transition text-slate-500"><ChevronLeft className="w-4 h-4" /></button>
+              <input type="month" value={period} onChange={e => setPeriod(e.target.value)} className="px-3 py-1.5 bg-white border border-slate-300 rounded text-sm text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-40" />
+              <button onClick={() => shiftMonth(1)} className="p-1.5 rounded hover:bg-slate-200 transition text-slate-500"><ChevronRight className="w-4 h-4" /></button>
+            </div>
           </div>
         </div>
         <p className="text-xs text-slate-400 mt-1">{y}年{m}月1日 〜 {y}年{m}月{new Date(y, m, 0).getDate()}日</p>
