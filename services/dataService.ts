@@ -5096,10 +5096,11 @@ export const getFinancialStatements = async (filters: { startDate: string; endDa
 // 仕訳行の更新（修正用）
 export const updateJournalLine = async (
     lineId: string,
-    updates: { debit?: number; credit?: number; description?: string }
+    updates: { account_id?: string; debit?: number; credit?: number; description?: string }
 ): Promise<void> => {
     const supabase = getSupabase();
     const updatePayload: Record<string, any> = {};
+    if (updates.account_id !== undefined) updatePayload.account_id = updates.account_id;
     if (updates.debit !== undefined) updatePayload.debit = updates.debit;
     if (updates.credit !== undefined) updatePayload.credit = updates.credit;
     if (updates.description !== undefined) updatePayload.description = updates.description;

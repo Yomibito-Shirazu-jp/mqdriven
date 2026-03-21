@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FileCheck, Search, Eye, Loader, X, RefreshCw, Check, Pencil, Sparkles, Undo2 } from 'lucide-react';
+import { FileCheck, Search, Eye, Loader, X, RefreshCw, Check, Pencil, Sparkles, Undo2, Save } from 'lucide-react';
 import { ApplicationWithDetails, AIJournalSuggestion, Page } from '../../../types';
 import * as dataService from '../../../services/dataService';
 import type { JournalAccountRule, JournalAccountRuleEntry } from '../../../services/dataService';
@@ -418,6 +418,45 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
     }
   }, [currentUserId, loadApprovedApplications, notify, selectedApplication, selectedCreditAccountId, selectedDebitAccountId]);
 
+  const handleUpdateJournal = useCallback(async () => {
+    if (!selectedApplication) return;
+    const entry = selectedApplication.journalEntry;
+    if (!entry || !entry.lines || entry.lines.length === 0) {
+      notify?.('更新する仕訳がありません。', 'error');
+      return;
+    }
+    if (!selectedDebitAccountId || !selectedCreditAccountId) {
+      notify?.('借方/貸方の勘定科目を選択してください。', 'error');
+      return;
+    }
+    setIsWorking(true);
+    try {
+      const debitLine = entry.lines.find((l: any) => (l.debit_amount || 0) > 0);
+      const creditLine = entry.lines.find((l: any) => (l.credit_amount || 0) > 0);
+      const amount = deriveAmount(selectedApplication);
+
+      if (debitLine?.id) {
+        await dataService.updateJournalLine(String(debitLine.id), {
+          account_id: selectedDebitAccountId,
+          ...(amount != null && amount > 0 ? { debit: amount } : {}),
+        });
+      }
+      if (creditLine?.id) {
+        await dataService.updateJournalLine(String(creditLine.id), {
+          account_id: selectedCreditAccountId,
+          ...(amount != null && amount > 0 ? { credit: amount } : {}),
+        });
+      }
+      notify?.('仕訳を修正しました。', 'success');
+      await loadApprovedApplications();
+    } catch (err: any) {
+      console.error('Failed to update journal lines:', err);
+      notify?.(err?.message || '仕訳の修正に失敗しました。', 'error');
+    } finally {
+      setIsWorking(false);
+    }
+  }, [loadApprovedApplications, notify, selectedApplication, selectedDebitAccountId, selectedCreditAccountId]);
+
   const handlePostJournal = useCallback(async () => {
     if (!selectedApplication) return;
     const entryId = selectedApplication.journalEntry?.id;
@@ -668,6 +707,10 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                       <td className="px-5 py-4 whitespace-nowrap">
                         {hasJournal && !isPosted ? (
                           <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedApplicationId(app.id); }} className="text-[13px] text-teal-700 dark:text-teal-400 hover:underline">
+                            修正
+                          </button>
+                        ) : hasJournal && isPosted ? (
+                          <button type="button" onClick={(e) => { e.stopPropagation(); setRevertingAppId(app.id); }} disabled={isInlineWorking} className="text-[13px] text-amber-600 dark:text-amber-400 hover:underline disabled:opacity-50">
                             修正
                           </button>
                         ) : (
@@ -969,15 +1012,26 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                   仕訳生成
                 </button>
               ) : (selectedApplication.accountingStatus ?? selectedApplication.accounting_status ?? 'none') !== 'posted' ? (
-                <button
-                  type="button"
-                  onClick={handlePostJournal}
-                  disabled={isWorking}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-emerald-600 text-white text-base font-semibold hover:bg-emerald-700 disabled:opacity-50 min-w-40"
-                >
-                  {isWorking ? <Loader className="w-5 h-5 animate-spin" /> : null}
-                  仕訳確定
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={handleUpdateJournal}
+                    disabled={isWorking || !canGenerateJournal}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg border-2 border-indigo-500 text-indigo-700 dark:text-indigo-300 text-base font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-500/10 disabled:opacity-50 min-w-36"
+                  >
+                    {isWorking ? <Loader className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                    仕訳修正
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handlePostJournal}
+                    disabled={isWorking}
+                    className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg bg-emerald-600 text-white text-base font-semibold hover:bg-emerald-700 disabled:opacity-50 min-w-40"
+                  >
+                    {isWorking ? <Loader className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                    仕訳確定
+                  </button>
+                </>
               ) : (
                 <button
                   type="button"
