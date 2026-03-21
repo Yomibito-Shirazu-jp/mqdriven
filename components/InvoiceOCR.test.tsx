@@ -81,7 +81,7 @@ describe('InvoiceOCR', () => {
       />
     );
 
-    const approveButton = await screen.findByRole('button', { name: '承認して計上' });
+    const approveButton = await screen.findByRole('button', { name: '確定して仕訳に送る' });
     await userEvent.click(approveButton);
 
     await waitFor(() => {

@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BusinessCardContact, Customer, EmployeeUser, Toast } from '../types';
 import { extractBusinessCardDetails } from '../services/geminiService';
 import { Upload, X, Loader, CheckCircle, AlertTriangle, Trash2, FileText } from './Icons';
@@ -236,7 +236,7 @@ const BusinessCardImportModal: React.FC<BusinessCardImportModalProps> = ({
         const batch = fileArray.slice(currentIndex, currentIndex + batchSize);
 
         // バッチ内のファイルを一括で追加
-        batch.forEach(file => {
+        const draftPairs = batch.map(file => {
           const id = generateId();
           const previewUrl = URL.createObjectURL(file);
           const draft: CardDraft = {
@@ -250,14 +250,12 @@ const BusinessCardImportModal: React.FC<BusinessCardImportModalProps> = ({
             processingStartTime: Date.now(),
             processingProgress: 0,
           };
-          setDrafts(prev => [...prev, draft]);
+          return { file, id, draft };
         });
+        setDrafts(prev => [...prev, ...draftPairs.map(pair => pair.draft)]);
 
         // バッチ内のファイルを並列処理
-        const batchPromises = batch.map((file, index) => {
-          const draftId = currentIndex + index;
-          return runOcr(draftId.toString(), file);
-        });
+        const batchPromises = draftPairs.map(({ id, file }) => runOcr(id, file));
 
         await Promise.all(batchPromises);
 

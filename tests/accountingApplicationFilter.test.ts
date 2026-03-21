@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isAccountingTargetApplication } from '../src/components/accounting/accountingApplicationFilter';
+import { isAccountingTargetApplication } from '../components/accounting/accountingApplicationFilter';
 
 const buildApp = (code?: string, name?: string) => ({
   id: 'app-1',

@@ -10,7 +10,7 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { Page } from '../types';
+import { Page } from '../../types';
 
 interface BusinessFormsHubProps {
   onNavigate: (page: Page) => void;

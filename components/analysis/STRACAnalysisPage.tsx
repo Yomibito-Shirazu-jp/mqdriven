@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { SaleRecord, FixedCostBreakdown, SummaryStats } from '../../types';
 import { fetchSupabaseData, analyzeDataWithGemini } from '../../services/analysisService';
+import { SUPABASE_URL } from '../../services/supabaseClient';
 
 // ==========================================
 // 定数 (Constants)
@@ -214,10 +215,14 @@ const STRACAnalysisPage: React.FC = () => {
     if (!key) return;
     setIsSyncing(true);
     try {
-      const synced = await fetchSupabaseData({ 
-        url: 'https://rwjhpfghhgstvplmggks.supabase.co', 
-        key, 
-        tableName: 'orders_v2' 
+      if (!SUPABASE_URL || SUPABASE_URL.includes('ここにURL')) {
+        alert('VITE_SUPABASE_URL が未設定です。環境変数を確認してください。');
+        return;
+      }
+      const synced = await fetchSupabaseData({
+        url: SUPABASE_URL,
+        key,
+        tableName: 'orders_v2',
       });
       setData(synced);
     } catch (e) { 

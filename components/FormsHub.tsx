@@ -1,23 +1,20 @@
-import React, { useEffect, useState } from 'react';
-import { getForms } from '../services/dataService';
-import { Form, Page } from '../types';
-import { FileText, Plus, Search, Loader } from './Icons';
+import React, { useMemo, useState } from 'react';
+import { Page } from '../types';
+import { FileText, Plus, Search } from './Icons';
 
 interface FormsHubProps {
   onNavigate: (page: Page) => void;
 }
 
 const FormsHub: React.FC<FormsHubProps> = ({ onNavigate }) => {
-  const [forms, setForms] = useState<Form[]>([]);
-  const [loading, setLoading] = useState(true);
+  const forms = useMemo(() => ([
+    { id: 'exp', code: 'EXP', name: '経費申請', description: '経費精算の申請を行います。' },
+    { id: 'trp', code: 'TRP', name: '交通費申請', description: '交通費の申請を行います。' },
+    { id: 'lev', code: 'LEV', name: '休暇申請', description: '休暇の申請を行います。' },
+    { id: 'apl', code: 'APL', name: '稟議申請', description: '稟議・承認申請を行います。' },
+    { id: 'dly', code: 'DLY', name: '日報申請', description: '日報を提出します。' },
+  ]), []);
   const [searchTerm, setSearchTerm] = useState('');
-
-  useEffect(() => {
-    getForms().then((data) => {
-      setForms(data);
-      setLoading(false);
-    });
-  }, []);
 
   const filteredForms = forms.filter(f => 
     f.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -31,18 +28,9 @@ const FormsHub: React.FC<FormsHubProps> = ({ onNavigate }) => {
       case 'LEV': return 'approval_form_leave';
       case 'APL': return 'approval_form_approval';
       case 'DLY': return 'approval_form_daily';
-      case 'WKR': return 'approval_form_weekly';
       default: return 'approval_list';
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-20">
-        <Loader className="w-10 h-10 animate-spin text-blue-500" />
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
@@ -69,7 +57,7 @@ const FormsHub: React.FC<FormsHubProps> = ({ onNavigate }) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredForms.map((form) => (
+        {filteredForms.map((form: { id: string; code: string; name: string; description?: string }) => (
           <div 
             key={form.id}
             onClick={() => onNavigate(getPageRoute(form.code))}

@@ -53,6 +53,18 @@ export const INQUIRY_TYPES = [
     'その他',
 ];
 
+const resolveSupabaseMcpUrl = (): string => {
+    const env =
+        (typeof import.meta !== 'undefined' &&
+            import.meta.env &&
+            (import.meta.env as Record<string, string | undefined>).VITE_SUPABASE_URL) ||
+        (typeof process !== 'undefined' ? process.env.VITE_SUPABASE_URL : undefined) ||
+        '';
+    const m = env.match(/https:\/\/([a-z0-9-]+)\.supabase\.co/i);
+    if (m) return `https://mcp.supabase.com/mcp?project_ref=${m[1]}`;
+    return 'https://mcp.supabase.com/mcp?project_ref=YOUR_PROJECT_REF';
+};
+
 /**
  * 【開発引き継ぎ：重要なお知らせとお詫び】
  * 本ファイル内のデータ（MOCK_CLIENTS, CATEGORIES）は、プロトタイプ構築のために
@@ -71,7 +83,7 @@ export const INTEGRATION_MANIFESTO = {
   統合エンドポイント: [
     {
       名称: "Supabase 基幹データベース (MCP)",
-      URL: "https://mcp.supabase.com/mcp?project_ref=rwjhpfghhgstvplmggks",
+      URL: resolveSupabaseMcpUrl(),
       役割: "顧客マスタ、過去案件の成約単価、原価実績、在庫情報の参照"
     },
     {

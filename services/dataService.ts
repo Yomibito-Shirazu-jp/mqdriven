@@ -2411,7 +2411,10 @@ export const getApprovedApplications = async (codes?: string[]): Promise<Applica
         }
     });
 
-    const entryIds = Array.from(entryByAppId.values()).map(entry => entry.id).filter(Boolean);
+    const entryIds = Array.from(entryByAppId.values())
+        .map(entry => entry.id)
+        .filter(Boolean)
+        .map((id) => String(id));
     const linesByEntryId = new Map<string, any[]>();
     if (entryIds.length > 0) {
         // publicスキーマのVIEW経由でaccounting.journal_linesにアクセス（チャンク分割）
@@ -2451,6 +2454,7 @@ export const getApprovedApplications = async (codes?: string[]): Promise<Applica
             id: line.id,
             journal_entry_id: line.journal_entry_id,
             account_id: line.account_id,
+            account_item_id: line.account_id, // UI互換エイリアス（UIはaccount_item_idを参照する箇所がある）
             account_code: line.accounts?.code ?? line.account_code,
             account_name: line.accounts?.name ?? line.account_name,
             description: line.description ?? undefined,
@@ -3565,18 +3569,63 @@ export const deletePaymentRecipient = async (id: string): Promise<void> => {
     ensureSupabaseSuccess(error, '謾ｯ謇募・縺ｮ蜑企勁縺ｫ螟ｱ謨励＠縺ｾ縺励◆');
 };
 
-// Analysis history helpers (legacy/no-op fallbacks).
+const ANALYSIS_HISTORY_STORAGE_KEY = 'mqdriven_anything_analysis_history_v1';
+const ANALYSIS_HISTORY_MAX = 100;
+
 export const getAnalysisHistory = async (): Promise<AnalysisHistory[]> => {
-    return [];
+    if (typeof localStorage === 'undefined') return [];
+    try {
+        const raw = localStorage.getItem(ANALYSIS_HISTORY_STORAGE_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw) as unknown;
+        return Array.isArray(parsed) ? (parsed as AnalysisHistory[]) : [];
+    } catch {
+        return [];
+    }
 };
 
-export const addAnalysisHistory = async (_entry: AnalysisHistory): Promise<void> => {
-    return;
+export const addAnalysisHistory = async (entry: AnalysisHistory): Promise<void> => {
+    if (typeof localStorage === 'undefined') return;
+    const id =
+        entry.id ||
+        (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `h-${Date.now()}`);
+    const row: AnalysisHistory = {
+        ...entry,
+        id,
+        createdAt: entry.createdAt || new Date().toISOString(),
+    };
+    const prev = await getAnalysisHistory();
+    const next = [row, ...prev].slice(0, ANALYSIS_HISTORY_MAX);
+    localStorage.setItem(ANALYSIS_HISTORY_STORAGE_KEY, JSON.stringify(next));
 };
 
-// Project creation fallback (no-op placeholder for UI callers).
-export const addProject = async (_project: Partial<Project>, _files?: any[]): Promise<Project | null> => {
-    return null;
+export const addProject = async (project: Partial<Project>, _files?: any[]): Promise<Project> => {
+    const supabase = getSupabase();
+    const projectCode = await fetchNextProjectCode(supabase);
+    const ext = project as Record<string, unknown>;
+    const projectName = String(ext.projectName ?? project.project_name ?? '').trim() || '新規案件';
+    const customerName = String(ext.customerName ?? project.customer_name ?? project.customer_code ?? '').trim() || '未設定';
+    const userId = ext.userId != null ? String(ext.userId) : null;
+
+    const dbRow: Record<string, unknown> = {
+        project_code: projectCode,
+        project_name: projectName,
+        customer_name: customerName,
+        customer_code: customerName,
+        project_status: String(ext.status ?? 'new'),
+        create_date: new Date().toISOString(),
+    };
+    if (userId) dbRow.create_user_id = userId;
+
+    const { data, error } = await supabase.from('projects').insert(dbRow).select().single();
+    ensureSupabaseSuccess(error, '案件の作成に失敗しました');
+    if (_files?.length) {
+        console.warn(
+            '[addProject] ファイル添付は未実装です（Storage 連携は docs/TECH_DEBT_BURNDOWN.md フェーズ 2）。',
+            { count: _files.length },
+        );
+    }
+    return dbProjectToProject(data);
 };
 
 export const getAllocationDivisions = async (): Promise<AllocationDivision[]> => {
@@ -4332,62 +4381,21 @@ export const getInvoices = async (): Promise<Invoice[]> => {
 
 export const createInvoiceFromJobs = async (jobIds: string[]): Promise<{ invoiceNo: string }> => {
     const supabase = getSupabase();
-
-    // This is a placeholder implementation.
-    // In a real scenario, you would call an RPC function or a Supabase Edge Function
-    // to handle the complex logic of invoice creation in a transaction.
-
-    const { data: jobs, error: jobsError } = await supabase
-        .from('projects')
-        .select('id, customer_name, amount')
-        .in('id', filterUuidValues(jobIds));
-
-    ensureSupabaseSuccess(jobsError, 'Failed to fetch jobs for invoicing');
-
-    if (!jobs || jobs.length === 0) {
+    const validJobIds = filterUuidValues(jobIds);
+    if (validJobIds.length === 0) {
         throw new Error('No valid jobs found for invoicing.');
     }
 
-    const customerName = jobs[0].customer_name;
-    if (!jobs.every(j => j.customer_name === customerName)) {
-        throw new Error('All jobs must belong to the same customer to be invoiced together.');
+    const { data, error } = await supabase.rpc('create_invoice_from_projects', {
+        p_project_ids: validJobIds,
+    });
+    ensureSupabaseSuccess(error, 'Failed to create invoice from jobs');
+
+    const row = Array.isArray(data) ? data[0] : data;
+    const invoiceNo = row?.invoice_no;
+    if (!invoiceNo) {
+        throw new Error('Invoice creation succeeded but invoice_no was not returned.');
     }
-
-    const invoiceNo = `INV-${Date.now()}`;
-    const invoiceDate = new Date().toISOString().split('T')[0];
-    const subtotalAmount = jobs.reduce((sum, job) => sum + (job.amount || 0), 0);
-    const taxAmount = subtotalAmount * 0.1; // Assuming 10% tax
-    const totalAmount = subtotalAmount + taxAmount;
-
-    const { data: invoice, error: invoiceError } = await supabase
-        .from('invoices')
-        .insert({
-            invoice_no: invoiceNo,
-            invoice_date: invoiceDate,
-            customer_name: customerName,
-            subtotal_amount: subtotalAmount,
-            tax_amount: taxAmount,
-            total_amount: totalAmount,
-            status: 'draft',
-        })
-        .select('id')
-        .single();
-
-    ensureSupabaseSuccess(invoiceError, 'Failed to create invoice header');
-
-    const invoiceItems = jobs.map((job, index) => ({
-        invoice_id: invoice.id,
-        job_id: job.id,
-        description: `Job #${job.id}`,
-        quantity: 1,
-        unit: '式',
-        unit_price: job.amount || 0,
-        line_total: job.amount || 0,
-        sort_index: index,
-    }));
-
-    const { error: itemsError } = await supabase.from('invoice_items').insert(invoiceItems);
-    ensureSupabaseSuccess(itemsError, 'Failed to create invoice items');
 
     return { invoiceNo };
 };
@@ -4977,6 +4985,7 @@ export const createJournalFromApplication = async (
 };
 
 // VIEW-based data fetching functions for accounting pages
+/** v_journal_book は仕訳エントリ1行。UI 用に科目・金額フィールドへ正規化する */
 export const getJournalBookData = async (filters?: { startDate?: string; endDate?: string }): Promise<any[]> => {
     const supabase = getSupabase();
     let query = supabase.from('v_journal_book').select('*');
@@ -4985,6 +4994,62 @@ export const getJournalBookData = async (filters?: { startDate?: string; endDate
     query = query.order('date', { ascending: false });
     const { data, error } = await query;
     ensureSupabaseSuccess(error, 'Failed to fetch journal book data');
+    const raw = data || [];
+    return raw.map((row: any) => ({
+        id: row.id,
+        date: row.date,
+        code: row.debit_account_code || row.credit_account_code || '',
+        name: [row.debit_account_name, row.credit_account_name].filter(Boolean).join(' / ') || row.description || '',
+        debit_amount: Number(row.debit_total) || 0,
+        credit_amount: Number(row.credit_total) || 0,
+        status: row.status,
+        description: row.description,
+    }));
+};
+
+/** 期間内に仕訳のある勘定（v_general_ledger） */
+export const getGeneralLedgerAccountsInPeriod = async (
+    startDate: string,
+    endDate: string,
+): Promise<{ id: string; code: string; name: string; account_type: string | null; normal_balance_side: string | null }[]> => {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+        .from('v_general_ledger')
+        .select('account_code, account_name, account_type, normal_balance_side')
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('account_code');
+    ensureSupabaseSuccess(error, 'Failed to fetch general ledger account index');
+    const seen = new Map<string, { id: string; code: string; name: string; account_type: string | null; normal_balance_side: string | null }>();
+    for (const row of data || []) {
+        const code = row.account_code as string;
+        if (!code || seen.has(code)) continue;
+        seen.set(code, {
+            id: code,
+            code,
+            name: (row.account_name as string) || '',
+            account_type: (row.account_type as string) || null,
+            normal_balance_side: (row.normal_balance_side as string) || null,
+        });
+    }
+    return Array.from(seen.values());
+};
+
+/** 指定科目・期間の元帳明細（v_general_ledger） */
+export const getGeneralLedgerLinesForAccount = async (
+    accountCode: string,
+    startDate: string,
+    endDate: string,
+): Promise<any[]> => {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+        .from('v_general_ledger')
+        .select('*')
+        .eq('account_code', accountCode)
+        .gte('date', startDate)
+        .lte('date', endDate)
+        .order('date', { ascending: true });
+    ensureSupabaseSuccess(error, 'Failed to fetch general ledger lines');
     return data || [];
 };
 
@@ -5047,12 +5112,17 @@ export const updateJournalLine = async (
 };
 
 // 費目別原価内訳（journal_linesからEXPENSE勘定を集計）
-export const getExpenseBreakdown = async (filters?: { startDate?: string; endDate?: string }): Promise<{ accountName: string; amount: number }[]> => {
+export const getExpenseBreakdown = async (
+    filters: { startDate: string; endDate: string }
+): Promise<{ accountName: string; amount: number }[]> => {
     const supabase = getSupabase();
+    if (!filters?.startDate || !filters?.endDate) {
+        throw new Error('getExpenseBreakdown requires startDate and endDate');
+    }
     try {
         const { data, error } = await supabase.rpc('get_financial_statements', {
-            p_start_date: filters?.startDate || '2000-01-01',
-            p_end_date: filters?.endDate || '2099-12-31',
+            p_start_date: filters.startDate,
+            p_end_date: filters.endDate,
         });
         if (!error && data) {
             return data
@@ -5064,53 +5134,60 @@ export const getExpenseBreakdown = async (filters?: { startDate?: string; endDat
     return [];
 };
 
-export const getTaxSummaryData = async (): Promise<any[]> => {
+/** 消費税集計（v_tax_summary）。期間は view の period 列（日付）で絞る */
+export const getTaxSummaryData = async (filters?: { startDate?: string; endDate?: string }): Promise<any[]> => {
     const supabase = getSupabase();
-    const { data, error } = await supabase.from('v_tax_summary').select('*');
-    ensureSupabaseSuccess(error, 'Failed to fetch tax summary data');
+    let query = supabase.from('v_tax_summary').select('*');
+    if (filters?.startDate) query = query.gte('period', filters.startDate);
+    if (filters?.endDate) query = query.lte('period', filters.endDate);
+    const { data, error } = await query;
+    if (error) {
+        console.warn('[getTaxSummaryData] v_tax_summary:', error.message);
+        return [];
+    }
     return data || [];
 };
 
-// Management stub data functions
+// Management stub data functions（VIEW 未作成時は空配列で落とさない）
 export const getInventoryData = async (): Promise<any[]> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('v_inventory_stub').select('*');
-    ensureSupabaseSuccess(error, 'Failed to fetch inventory data');
+    if (error) return [];
     return data || [];
 };
 
 export const getManufacturingData = async (): Promise<any[]> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('v_manufacturing_stub').select('*');
-    ensureSupabaseSuccess(error, 'Failed to fetch manufacturing data');
+    if (error) return [];
     return data || [];
 };
 
 export const getPurchasingData = async (): Promise<any[]> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('v_purchasing_stub').select('*');
-    ensureSupabaseSuccess(error, 'Failed to fetch purchasing data');
+    if (error) return [];
     return data || [];
 };
 
 export const getAttendanceData = async (): Promise<any[]> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('v_attendance_stub').select('*');
-    ensureSupabaseSuccess(error, 'Failed to fetch attendance data');
+    if (error) return [];
     return data || [];
 };
 
 export const getManHoursData = async (): Promise<any[]> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('v_man_hours_stub').select('*');
-    ensureSupabaseSuccess(error, 'Failed to fetch man-hours data');
+    if (error) return [];
     return data || [];
 };
 
 export const getLaborCostData = async (): Promise<any[]> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('v_labor_cost_stub').select('*');
-    ensureSupabaseSuccess(error, 'Failed to fetch labor cost data');
+    if (error) return [];
     return data || [];
 };
 
@@ -5419,6 +5496,177 @@ export const createJournalFromAiSelection = async (params: {
         batchId: result.batch_id,
         journalEntryId: result.journal_entry_id,
     };
+};
+
+/**
+ * 過去の確定済み仕訳から「申請種別 × 支払先」でマッチするルールを返す。
+ * DB にルールテーブルは持たず、既存の posted 仕訳を動的に集計する。
+ * 
+ * 優先度:
+ *  1. 同じ application_code_id かつ同じ supplierName の posted 仕訳 → 最頻出ペア
+ *  2. 同じ application_code_id の posted 仕訳 → 最頻出ペア（supplierName 不一致時のフォールバック）
+ */
+export interface JournalAccountRule {
+    debitAccountId: string;
+    debitAccountCode?: string;
+    debitAccountName?: string;
+    creditAccountId: string;
+    creditAccountCode?: string;
+    creditAccountName?: string;
+    matchCount: number;
+    matchType: 'code_and_supplier' | 'code_only';
+}
+
+export const getJournalAccountRules = async (
+    applicationCodeId: string,
+    supplierName?: string,
+): Promise<JournalAccountRule | null> => {
+    const supabase = getSupabase();
+
+    // 1. 同じ application_code_id の confirmed (posted) 申請IDを取得
+    const { data: postedApps, error: appsError } = await supabase
+        .from('applications')
+        .select('id, form_data, application_code_id')
+        .eq('application_code_id', applicationCodeId)
+        .eq('accounting_status', 'posted')
+        .limit(200);
+
+    if (appsError) {
+        console.warn('[getJournalAccountRules] Failed to fetch posted applications:', appsError.message);
+        return null;
+    }
+
+    if (!postedApps || postedApps.length === 0) return null;
+
+    // supplierName による分類
+    const extractSupplier = (app: any): string => {
+        const fd = app.form_data ?? {};
+        return (
+            fd.invoice?.supplierName ||
+            fd.supplierName ||
+            fd.paymentDestination ||
+            ''
+        ).trim().toLowerCase();
+    };
+
+    const normalizedSupplier = (supplierName || '').trim().toLowerCase();
+    const exactMatchIds: string[] = [];
+    const allIds: string[] = [];
+
+    for (const app of postedApps) {
+        allIds.push(app.id);
+        if (normalizedSupplier && extractSupplier(app) === normalizedSupplier) {
+            exactMatchIds.push(app.id);
+        }
+    }
+
+    // ルール抽出ヘルパー
+    const findMostCommonPair = async (appIds: string[]): Promise<{
+        debitAccountId: string;
+        creditAccountId: string;
+        count: number;
+    } | null> => {
+        if (appIds.length === 0) return null;
+
+        const batches = await fetchJournalBatches(supabase, appIds);
+        const postedBatches = batches.filter((b: any) => b.status === 'posted');
+        if (postedBatches.length === 0) return null;
+
+        const batchIds = postedBatches.map((b: any) => b.id);
+        const entries = await chunkedIn(supabase, 'journal_entries', 'id, batch_id', 'batch_id', batchIds);
+        if (entries.length === 0) return null;
+
+        const entryIds = entries.map((e: any) => String(e.id)).filter(Boolean);
+        const lines = await chunkedIn(supabase, 'journal_lines', 'journal_entry_id, account_id, debit, credit', 'journal_entry_id', entryIds);
+
+        // entry_id ごとに borrower/creditor ペアを集計
+        const pairCounts = new Map<string, number>();
+        const entryLines = new Map<string, any[]>();
+        for (const line of lines) {
+            const key = String(line.journal_entry_id);
+            if (!entryLines.has(key)) entryLines.set(key, []);
+            entryLines.get(key)!.push(line);
+        }
+
+        for (const [, elines] of entryLines) {
+            const debitLine = elines.find((l: any) => (l.debit ?? 0) > 0);
+            const creditLine = elines.find((l: any) => (l.credit ?? 0) > 0);
+            if (!debitLine?.account_id || !creditLine?.account_id) continue;
+            const pairKey = `${debitLine.account_id}::${creditLine.account_id}`;
+            pairCounts.set(pairKey, (pairCounts.get(pairKey) || 0) + 1);
+        }
+
+        if (pairCounts.size === 0) return null;
+
+        // 最頻出ペア
+        let bestKey = '';
+        let bestCount = 0;
+        for (const [key, count] of pairCounts) {
+            if (count > bestCount) {
+                bestKey = key;
+                bestCount = count;
+            }
+        }
+
+        const [debitAccountId, creditAccountId] = bestKey.split('::');
+        return { debitAccountId, creditAccountId, count: bestCount };
+    };
+
+    // 勘定科目名を解決
+    const resolveAccountNames = async (
+        debitId: string,
+        creditId: string,
+    ): Promise<{ debitCode?: string; debitName?: string; creditCode?: string; creditName?: string }> => {
+        const ids = [debitId, creditId].filter(Boolean);
+        if (ids.length === 0) return {};
+        const accounts = await chunkedIn(supabase, 'chart_of_accounts', 'id, code, name', 'id', ids);
+        const map = new Map<string, { code: string; name: string }>();
+        for (const acc of accounts) {
+            map.set(acc.id, { code: acc.code, name: acc.name });
+        }
+        return {
+            debitCode: map.get(debitId)?.code,
+            debitName: map.get(debitId)?.name,
+            creditCode: map.get(creditId)?.code,
+            creditName: map.get(creditId)?.name,
+        };
+    };
+
+    // 優先度1: application_code + supplierName 完全一致
+    if (exactMatchIds.length > 0) {
+        const pair = await findMostCommonPair(exactMatchIds);
+        if (pair && pair.count >= 1) {
+            const names = await resolveAccountNames(pair.debitAccountId, pair.creditAccountId);
+            return {
+                debitAccountId: pair.debitAccountId,
+                debitAccountCode: names.debitCode,
+                debitAccountName: names.debitName,
+                creditAccountId: pair.creditAccountId,
+                creditAccountCode: names.creditCode,
+                creditAccountName: names.creditName,
+                matchCount: pair.count,
+                matchType: 'code_and_supplier',
+            };
+        }
+    }
+
+    // 優先度2: application_code のみ一致
+    const pair = await findMostCommonPair(allIds);
+    if (pair && pair.count >= 2) { // 種別のみの場合は2件以上で信頼
+        const names = await resolveAccountNames(pair.debitAccountId, pair.creditAccountId);
+        return {
+            debitAccountId: pair.debitAccountId,
+            debitAccountCode: names.debitCode,
+            debitAccountName: names.debitName,
+            creditAccountId: pair.creditAccountId,
+            creditAccountCode: names.creditCode,
+            creditAccountName: names.creditName,
+            matchCount: pair.count,
+            matchType: 'code_only',
+        };
+    }
+
+    return null;
 };
 
 // 見積データを保存する関数

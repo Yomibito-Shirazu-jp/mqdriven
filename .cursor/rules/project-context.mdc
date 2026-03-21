@@ -1,0 +1,20 @@
+---
+description: MQDriven 会計モジュールとエージェント作業の永続コンテキスト
+alwaysApply: true
+---
+
+# MQDriven — 登録済みコンテキスト
+
+詳細はリポジトリ直下の **`AGENTS.md`** を正とする（画面とデータ源の対応、マイグレーションに含まれる VIEW、未整合箇所、完了の定義）。
+
+## エージェントが最初に把握すること
+- 会計のルーティングのハブは **`components/Accounting.tsx`**。子画面は **`components/accounting/`**。
+- **総勘定元帳**は **`v_general_ledger`**（`getGeneralLedgerAccountsInPeriod` / `getGeneralLedgerLinesForAccount`）。
+- **消費税**は **`getTaxSummaryData` → `v_tax_summary`** のみ（`20260321130000_*` で仮受/仮払勘定ベース集計。複数税率は今後拡張）。
+- **仕訳帳**は `getJournalBookData`（`v_journal_book` を UI 用に正規化）。
+- **`v_*_stub`** は未作成なら `dataService` が空配列を返す。
+- 残タスク一覧: **`docs/TECH_DEBT_BURNDOWN.md`**
+
+## 作業姿勢
+- 「完了」は **AGENTS.md の完了の定義**を満たすまで。齟齬は直すか、例外を文書化する。
+- 会計は **参照専用・0 埋め禁止・VIEW/RPC で集計**を既定とし、逸脱する場合は理由を残す。

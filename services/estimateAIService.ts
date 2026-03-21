@@ -39,7 +39,7 @@ export const extractSpecsFromContent = async (text: string, imageData?: { data: 
 
     // Use a powerful model for extraction
     const modelName = "gemini-2.0-pro-exp-02-05"; // Or whatever is best/available
-    const model = ai.getGenerativeModel({ model: modelName });
+    const model = (ai as any).getGenerativeModel({ model: modelName });
 
     const result = await model.generateContent({
         contents: [{ role: 'user', parts }],
@@ -85,7 +85,7 @@ export const extractSpecsFromContent = async (text: string, imageData?: { data: 
 export const suggestCostBreakdown = async (specs: PrintSpecs): Promise<{ costs: CostItem[], sources: GroundingSource[] }> => {
     const ai = requireGeminiClient();
     const modelName = "gemini-2.0-flash";
-    const model = ai.getGenerativeModel({
+    const model = (ai as any).getGenerativeModel({
         model: modelName,
         tools: [{ googleSearch: {} } as any],
     });
@@ -143,7 +143,7 @@ export const suggestCostBreakdown = async (specs: PrintSpecs): Promise<{ costs: 
  */
 export const calculateDeliveryImpact = async (destination: string): Promise<GroundingSource[]> => {
     const ai = requireGeminiClient();
-    const model = ai.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const model = (ai as any).getGenerativeModel({ model: "gemini-2.0-flash" });
 
     const result = await model.generateContent({
         contents: [{
@@ -165,7 +165,7 @@ export const calculateDeliveryImpact = async (destination: string): Promise<Grou
  */
 export const getChatResponse = async (message: string, history: any[]) => {
     const ai = requireGeminiClient();
-    const model = ai.getGenerativeModel({
+    const model = (ai as any).getGenerativeModel({
         model: "gemini-2.0-flash",
         systemInstruction: "あなたは文唱堂印刷のAI積算部長です。PDF解析根拠、最新用紙相場に基づき、詳細な回答を行います。"
     });

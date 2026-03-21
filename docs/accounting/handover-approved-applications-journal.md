@@ -164,3 +164,48 @@ AIの「提案」を本番仕訳と分離して保持し、**承認後に accoun
 - **RPC 404 の原因は引数不一致**で確定。2引数を必須に統一すれば解消。
 - **承認済み一覧と仕訳レビューの統合が未完**。ここが最大の優先事項。
 - AI提案は DB 準備済み。**「選択済み状態」まで持っていく UI 実装が未完**。
+
+---
+
+## 10. 修正記録（2026-03-21）
+
+### 10.1 承認済み一覧：既存仕訳の勘定科目が初期セットされないバグ
+
+**症状:** 既存仕訳がある申請を選択しても、借方/貸方のセレクトが常に「未選択」になる。  
+**根本原因:** プロパティ名の不一致。
+
+| 箇所 | 参照プロパティ | 実際のプロパティ |
+|------|---------------|-----------------|
+| `ApprovedApplications.tsx` L189-192 | `line.account_item_id` | **存在しない**（常に `undefined`） |
+| `dataService.ts` L2453-2463 マッピング | — | `line.account_id` を設定 |
+
+**対処:**
+1. `dataService.ts` のマッピングで `account_item_id: line.account_id` エイリアスを追加
+2. `ApprovedApplications.tsx` で `account_item_id || account_id` のフォールバックチェーン化
+
+**教訓:**  
+DB カラム名 (`account_id`) と旧モデル名 (`account_item_id`) が混在すると、見た目は動いているが初期値が入らない**サイレントバグ**になる。  
+`JournalEntryLine` 型に `account_item_id` を正式に定義するか、UI 側を `account_id` に統一するかは次フェーズで判断。
+
+### 10.2 確定取消（下書きに戻す）機能の追加
+
+**背景:** 仕訳を誤って確定した場合に修正手段がなかった。  
+**実装:**
+- `handleRevertToDraft` / `handleInlineRevert` ハンドラを追加
+- 既存の `updateJournalEntryStatus(entryId, 'draft')` + `updateApplicationAccountingStatus(appId, 'draft')` を利用
+- テーブル一覧: 確定済み行の「確定」列に「確定取消」ボタン（確認ステップ付き）
+- モーダル: フッターに `Undo2` アイコン付き「確定取消（下書きに戻す）」ボタン
+- **確定取消後は `draft` に戻り、修正 → 再確定の導線が使える**
+
+### 10.3 ルールベース勘定科目提案の追加
+
+**背景:** 同じ種別・同じ支払先の申請は毎回同じ勘定科目で仕訳するケースが多い。AI提案を待たなくても、過去の実績から自動セットできるはず。  
+**実装:**
+- `dataService.ts` に `getJournalAccountRules(applicationCodeId, supplierName?)` を追加
+- 新テーブル不要。既存の `applications(posted)` → `v_journal_batches` → `journal_entries` → `journal_lines` を動的集計
+- 優先度:
+  1. `application_code_id` + `supplierName` 完全一致 → 1件以上で適用
+  2. `application_code_id` のみ一致 → 2件以上で適用
+- UI 側: 申請選択時にルールを非同期取得 → ヒットすれば借方/貸方セレクトに自動セット
+- ルール適用済みの場合は AI 自動提案をスキップ（手動で「再提案」は可能）
+- モーダル内にルール提案パネル（amber カラー）を表示し、マッチ種別と件数を明示

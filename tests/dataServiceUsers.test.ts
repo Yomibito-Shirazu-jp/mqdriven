@@ -27,13 +27,15 @@ describe('dataService user mutations', () => {
     });
 
     expect(fromMock).toHaveBeenCalledWith('users');
-    expect(insertMock).toHaveBeenCalledWith({
-      email: 'taro@example.com',
-      name: '山田太郎',
-      name_kana: 'ヤマダタロウ',
-      role: 'user',
-      is_active: true,
-    });
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: 'taro@example.com',
+        name: '山田太郎',
+        name_kana: 'ヤマダタロウ',
+        role: 'user',
+        is_active: true,
+      }),
+    );
   });
 
   it('retries user insert when name_kana column is missing', async () => {

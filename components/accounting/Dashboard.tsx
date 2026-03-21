@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Page } from '../../../types';
+import { Page } from '../../types';
 import { WorkflowNavigator } from './WorkflowNavigator';
 import { Bell, CheckCircle2, Clock, Loader2, RefreshCw } from 'lucide-react';
-import * as dataService from '../../../services/dataService';
+import * as dataService from '../../services/dataService';
 
 interface AccountingDashboardProps {
   setCurrentView: (view: Page) => void;
@@ -48,7 +48,6 @@ export const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Intro Section */}
       <div className="bg-slate-900 text-white p-6 rounded-xl shadow-lg border border-slate-800 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-xl font-bold mb-1">会計ダッシュボード</h1>
@@ -70,7 +69,6 @@ export const AccountingDashboard: React.FC<AccountingDashboardProps> = ({
 
       <WorkflowNavigator navigateTo={setCurrentView} pendingCount={pendingDraftsCount} />
 
-      {/* To-Do List (Actionable Items Only) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
           <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">

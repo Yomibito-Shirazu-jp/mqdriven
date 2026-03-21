@@ -1,4 +1,4 @@
-﻿import { Type, Chat, FunctionDeclaration } from "@google/genai";
+import { Type, Chat, FunctionDeclaration } from "@google/genai";
 import JSZip from "jszip";
 import {
   GEMINI_DEFAULT_MODEL,
@@ -1982,7 +1982,7 @@ const generateEnvironmentalNote = (): string => {
 
 /**
  * 【開発者への引き継ぎ：実装上の重要事項】
- * 以下の `coreTools` は、AIがSupabase（project_ref: rwjhpfghhgstvplmggks）や
+ * 以下の `coreTools` は、AI が Supabase（環境変数で指定したプロジェクト）や
  * Google Driveを操作するためのツール定義です。
  * 
  * 【お詫び】

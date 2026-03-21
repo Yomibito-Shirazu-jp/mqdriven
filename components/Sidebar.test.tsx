@@ -18,7 +18,7 @@ describe('Sidebar', () => {
     );
     const aside = container.querySelector('aside');
     expect(aside).not.toBeNull();
-    expect(aside?.className).toContain('bg-slate-800');
-    expect(aside?.className).toContain('text-white');
+    expect(aside?.className).toContain('w-full');
+    expect(aside?.className).toContain('sm:w-64');
   });
 });

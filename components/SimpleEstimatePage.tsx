@@ -9,6 +9,15 @@ interface SimpleEstimatePageProps {
 }
 
 const SimpleEstimatePage: React.FC<SimpleEstimatePageProps> = ({ currentUser, addToast }) => {
+  const toNumber = (value: number | string | null | undefined): number => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  };
+
   const [estimates, setEstimates] = useState<Estimate[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -42,7 +51,7 @@ const SimpleEstimatePage: React.FC<SimpleEstimatePageProps> = ({ currentUser, ad
   // 分析データ
   const analyticsData = React.useMemo(() => {
     const totalEstimates = estimates.length;
-    const totalAmount = estimates.reduce((sum, est) => sum + (est.total || est.grandTotal || 0), 0);
+    const totalAmount = estimates.reduce((sum, est) => sum + toNumber(est.total ?? est.grandTotal), 0);
     const statusCounts = estimates.reduce((acc, est) => {
       acc[est.status] = (acc[est.status] || 0) + 1;
       return acc;
@@ -139,7 +148,7 @@ const SimpleEstimatePage: React.FC<SimpleEstimatePageProps> = ({ currentUser, ad
         displayName: estimateData.displayName || estimateData.title || '新規見積',
         projectName: estimateData.projectName || '',
         items: [],
-        total: estimateData.total || estimateData.grandTotal || 0,
+        total: toNumber(estimateData.total ?? estimateData.grandTotal),
         deliveryDate: '',
         paymentTerms: '',
         deliveryMethod: '',
@@ -151,7 +160,7 @@ const SimpleEstimatePage: React.FC<SimpleEstimatePageProps> = ({ currentUser, ad
         updatedAt: new Date().toISOString(),
         subtotal: 0,
         taxTotal: 0,
-        grandTotal: estimateData.total || estimateData.grandTotal || 0,
+        grandTotal: toNumber(estimateData.total ?? estimateData.grandTotal),
         deliveryTerms: '',
         projectId: null,
         patternNo: null,
@@ -300,7 +309,7 @@ const SimpleEstimatePage: React.FC<SimpleEstimatePageProps> = ({ currentUser, ad
                     <td className="py-3 px-4 font-medium text-gray-900 dark:text-white">{estimate.estimateNumber || '-'}</td>
                     <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{estimate.customerName || '-'}</td>
                     <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{estimate.projectName || '-'}</td>
-                    <td className="py-3 px-4 text-right font-medium text-gray-900 dark:text-white">{formatCurrency(estimate.total || estimate.grandTotal || 0)}</td>
+                    <td className="py-3 px-4 text-right font-medium text-gray-900 dark:text-white">{formatCurrency(toNumber(estimate.total ?? estimate.grandTotal))}</td>
                     <td className="py-3 px-4">{getStatusBadge(estimate.status)}</td>
                     <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{estimate.createdAt ? new Date(estimate.createdAt).toLocaleDateString('ja-JP') : '-'}</td>
                     <td className="py-3 px-4 text-gray-700 dark:text-gray-300">{estimate.expirationDate ? new Date(estimate.expirationDate).toLocaleDateString('ja-JP') : '-'}</td>
@@ -423,11 +432,11 @@ const SimpleEstimatePage: React.FC<SimpleEstimatePageProps> = ({ currentUser, ad
                   const form = document.querySelector('form');
                   if (form) {
                     const formData = new FormData(form as HTMLFormElement);
-                    const estimateData = {
+                    const estimateData: Partial<Estimate> = {
                       customerName: (formData.get('customerName') as string) || selectedEstimate?.customerName || '',
                       projectName: (formData.get('projectName') as string) || selectedEstimate?.projectName || '',
-                      total: Number(formData.get('amount')) || selectedEstimate?.total || selectedEstimate?.grandTotal || 0,
-                      grandTotal: Number(formData.get('amount')) || selectedEstimate?.total || selectedEstimate?.grandTotal || 0,
+                      total: Number(formData.get('amount')) || toNumber(selectedEstimate?.total ?? selectedEstimate?.grandTotal),
+                      grandTotal: Number(formData.get('amount')) || toNumber(selectedEstimate?.total ?? selectedEstimate?.grandTotal),
                       expirationDate: (formData.get('validUntil') as string) || selectedEstimate?.expirationDate || ''
                     };
                     handleSaveEstimate(estimateData);

@@ -97,7 +97,7 @@ const COMMUNICATION_DATA: BusinessPlan = {
         { type: '実績', monthly: [3.7, 3.9, 3.7, 3.7, 3.9, 3.9, 3.9, 3.9, 3.9, 3.9, 3.9, 3.9], cumulative: [3.7, 7.6, 11.3, 15.0, 18.9, 22.8, 26.7, 30.6, 34.5, 38.4, 42.3, 46.2] }, // F1, F2, F an F4/F5 are missing
         { type: '前年', monthly: [3.7, 3.7, 3.7, 3.7, 3.7, 4.5, 3.9, 3.9, 3.9, 3.9, 3.9, 3.9], cumulative: [3.7, 7.4, 11.1, 14.8, 18.5, 23.0, 26.9, 30.8, 34.7, 38.6, 42.5, 46.4] }
     ]},
-    { name: 'G', totalValue: 46.0, data: [ // G total value is F's total, seems wrong, using it as placeholder
+    { name: 'G', totalValue: 32.4, data: [ // 目標累計の期末値に合わせる（旧: F と同じ 46.0 の誤置換を解消）
         { type: '目標', monthly: [1.7, 1.7, 3.7, 1.7, 1.7, 1.7, 7.0, 6.0, 1.7, 2.1, 1.7, 1.7], cumulative: [1.7, 3.4, 7.1, 8.8, 10.5, 12.2, 19.2, 25.2, 26.9, 29.0, 30.7, 32.4] },
         { type: '実績', monthly: [-0.9, -1.6, 1.1, 0.6, -0.9, -1.4, 2.6, -1.7, -1.7, 0.6, -0.4, -1.4], cumulative: [-0.9, -2.5, -1.4, -0.8, -1.7, -3.1, -0.5, -2.2, -3.9, -3.3, -3.7, -5.1] },
         { type: '前年', monthly: [0.1, 1.1, 1.1, -0.9, 1.0, 0.0, 0.3, 2.1, -0.7, 1.3, 1.3, 1.2], cumulative: [0.1, 1.2, 2.3, 1.4, 2.4, 2.4, 2.7, 4.8, 4.1, 5.4, 6.7, 7.9] }
@@ -105,8 +105,7 @@ const COMMUNICATION_DATA: BusinessPlan = {
   ]
 };
 
-// ... Add other individuals' data similarly based on their sheets
-// Placeholder for other data sources
+// シート未取り込みメンバー（空配列＝画面側でデータなし扱い）
 const FUSE_DATA: BusinessPlan = { name: '布施勇一', headers: [], items: [] };
 const MIYAMOTO_DATA: BusinessPlan = { name: '宮本賢一', headers: [], items: [] };
 const YOKOYAMA_DATA: BusinessPlan = { name: '横山久', headers: [], items: [] };

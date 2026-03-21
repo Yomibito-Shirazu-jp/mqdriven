@@ -300,7 +300,7 @@ export default function EstimateListPage() {
                         <span className="text-2xl font-bold text-purple-600">
                           ¥{estimates
                             .filter(e => e.status === 'paid')
-                            .reduce((sum, e) => sum + e.totalAmount, 0)
+                            .reduce((sum, e) => sum + e.total, 0)
                             .toLocaleString()}
                         </span>
                       </div>
@@ -310,10 +310,8 @@ export default function EstimateListPage() {
                           ¥{Math.round(
                             estimates
                               .filter(e => e.status === 'paid')
-                              .reduce((sum, e) => sum + e.totalAmount, 0) / 
-                              estimates
-                                .filter(e => e.status === 'paid')
-                                .reduce((sum, e) => sum + e.content.length, 0)
+                              .reduce((sum, e) => sum + e.total, 0) /
+                              Math.max(estimates.filter(e => e.status === 'paid').length, 1)
                           ).toLocaleString()}
                         </span>
                       </div>
@@ -339,15 +337,13 @@ export default function EstimateListPage() {
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">開封済み</span>
                         <span className="text-2xl font-bold text-green-600">
-                          {estimates.filter(e => e.emailOpenCount > 0).length}
+                          {0}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-sm text-gray-600">開封率</span>
                         <span className="text-2xl font-bold text-blue-600">
-                          {estimates.filter(e => e.status === 'sent').length > 0 ? 
-                            Math.round((estimates.filter(e => e.emailOpenCount > 0).length / estimates.filter(e => e.status === 'sent').length) * 100) : 0
-                          }%
+                          {0}%
                         </span>
                       </div>
                     </div>

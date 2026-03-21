@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Download, Calendar, ChevronDown, Printer, Loader, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, ChevronDown, Loader, ChevronLeft, ChevronRight } from 'lucide-react';
+import { getGeneralLedgerAccountsInPeriod, getGeneralLedgerLinesForAccount } from '../../services/dataService';
 
 const formatCurrency = (val: number | null | undefined) => {
   if (val === null || val === undefined || val === 0) return '';
@@ -25,101 +26,65 @@ const GeneralLedger: React.FC = () => {
     setPeriod(`${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`);
   };
 
-  // v_accounting_base に実際に存在する科目のみ取得（データがない科目は除外）
-  const loadAccounts = useCallback(async () => {
-    try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
-      const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
-      const sb = createClient(supabaseUrl, supabaseKey);
+  const monthBounds = useCallback(() => {
+    const [year, month] = period.split('-').map(Number);
+    const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+    const endDate = new Date(year, month, 0);
+    const endDateStr = `${endDate.getFullYear()}-${(endDate.getMonth() + 1).toString().padStart(2, '0')}-${endDate.getDate().toString().padStart(2, '0')}`;
+    return { startDate, endDateStr };
+  }, [period]);
 
-      // v_accounting_base から実際にデータのある科目コード・名称を取得
-      const { data, error } = await sb
-        .from('v_accounting_base')
-        .select('code, name, account_type, normal_balance_side')
-        .order('code');
-
-      if (error) throw error;
-
-      // 重複排除して科目リストを作成
-      const seen = new Set<string>();
-      const unique = (data || []).filter((row: any) => {
-        if (!row.code || seen.has(row.code)) return false;
-        seen.add(row.code);
-        return true;
-      }).map((row: any) => ({ id: row.code, code: row.code, name: row.name, account_type: row.account_type, normal_balance_side: row.normal_balance_side }));
-
-      setAccounts(unique);
-      if (unique.length > 0) {
-        setSelectedCode(unique[0].code);
-      }
-    } catch (err) {
-      console.error('v_accounting_base account list load error:', err);
-      setError('勘定科目の読み込みに失敗しました。');
-    }
-  }, []);
-
-  // 選択科目・期間で v_accounting_base から明細を取得してGL形式に集計
-  const loadLedger = useCallback(async () => {
-    if (!selectedCode) return;
+  const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
-      const supabaseKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
-      const sb = createClient(supabaseUrl, supabaseKey);
-
-      const [year, month] = period.split('-').map(Number);
-      const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
-      const endDate = new Date(year, month, 0);
-      const endDateStr = `${endDate.getFullYear()}-${(endDate.getMonth() + 1).toString().padStart(2, '0')}-${endDate.getDate().toString().padStart(2, '0')}`;
-
-      const { data, error } = await sb
-        .from('v_accounting_base')
-        .select('id, date, code, name, debit_amount, credit_amount, status, normal_balance_side, line_description, entry_description')
-        .eq('code', selectedCode)
-        .gte('date', startDate)
-        .lte('date', endDateStr)
-        .order('date', { ascending: true });
-
-      if (error) throw error;
-
-      // 科目の通常増加側を取得（最初の行から）
-      const normalSide = selectedAccount?.normal_balance_side || (data?.[0] as any)?.normal_balance_side || 'debit';
+      const { startDate, endDateStr } = monthBounds();
+      const accs = await getGeneralLedgerAccountsInPeriod(startDate, endDateStr);
+      setAccounts(accs);
+      const validCode = accs.some((a) => a.code === selectedCode) ? selectedCode : (accs[0]?.code ?? '');
+      if (validCode !== selectedCode) setSelectedCode(validCode);
+      if (!validCode) {
+        setLedgerData([]);
+        return;
+      }
+      const data = await getGeneralLedgerLinesForAccount(validCode, startDate, endDateStr);
+      const acc = accs.find((a) => a.code === validCode);
+      const normalSide = acc?.normal_balance_side || (data?.[0] as any)?.normal_balance_side || 'debit';
       const isDebitNormal = normalSide === 'debit';
 
-      // 累積残高を計算（科目種別に応じた正しい計算）
       let balance = 0;
       const rows = (data || []).map((row: any, i: number) => {
-        const debit = Number(row.debit_amount) || 0;
-        const credit = Number(row.credit_amount) || 0;
-        // 資産・費用科目: 借方が増加 (debit - credit)
-        // 負債・純資産・収益科目: 貸方が増加 (credit - debit)
+        const debit = Number(row.debit) || 0;
+        const credit = Number(row.credit) || 0;
         balance += isDebitNormal ? (debit - credit) : (credit - debit);
+        const partnerHint = row.partner_account_name
+          ? `相手: ${row.partner_account_name}${row.partner_account_code ? ` (${row.partner_account_code})` : ''}`
+          : '';
+        const description = [row.description, partnerHint].filter(Boolean).join(' — ');
         return {
           id: row.id || i,
           date: String(row.date).split('T')[0],
           status: row.status,
-          description: row.line_description || row.entry_description || '',
+          description,
           debit: debit || null,
           credit: credit || null,
           type: debit > 0 ? '借' : '貸',
           balance,
         };
       });
-
       setLedgerData(rows);
     } catch (err) {
-      console.error('getGeneralLedger error:', err);
+      console.error('GeneralLedger load error:', err);
       setError('元帳データの読み込みに失敗しました。');
+      setLedgerData([]);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedCode, period]);
+  }, [monthBounds, selectedCode]);
 
-  useEffect(() => { loadAccounts(); }, [loadAccounts]);
-  useEffect(() => { loadLedger(); }, [loadLedger]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const totals = ledgerData.reduce((acc, entry) => {
     acc.debit += entry.debit ?? 0;
@@ -132,7 +97,6 @@ const GeneralLedger: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-      {/* Header */}
       <div className="p-4 border-b border-slate-200 bg-slate-50/50">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div className="flex items-center space-x-4">
@@ -145,11 +109,15 @@ const GeneralLedger: React.FC = () => {
                 value={selectedCode}
                 onChange={(e) => setSelectedCode(e.target.value)}
               >
-                {accounts.map(item => (
-                  <option key={item.id} value={item.code}>
-                    {item.code} : {item.name}
-                  </option>
-                ))}
+                {accounts.length === 0 ? (
+                  <option value="">（この期間に仕訳なし）</option>
+                ) : (
+                  accounts.map(item => (
+                    <option key={item.id} value={item.code}>
+                      {item.code} : {item.name}
+                    </option>
+                  ))
+                )}
               </select>
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             </div>
@@ -171,7 +139,7 @@ const GeneralLedger: React.FC = () => {
           </div>
 
           <div className="flex items-center space-x-2">
-            <button onClick={() => shiftMonth(-1)} className="p-1.5 rounded hover:bg-slate-200 transition text-slate-500">
+            <button type="button" onClick={() => shiftMonth(-1)} className="p-1.5 rounded hover:bg-slate-200 transition text-slate-500">
               <ChevronLeft className="w-4 h-4" />
             </button>
             <div className="relative">
@@ -183,21 +151,14 @@ const GeneralLedger: React.FC = () => {
               />
               <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             </div>
-            <button onClick={() => shiftMonth(1)} className="p-1.5 rounded hover:bg-slate-200 transition text-slate-500">
+            <button type="button" onClick={() => shiftMonth(1)} className="p-1.5 rounded hover:bg-slate-200 transition text-slate-500">
               <ChevronRight className="w-4 h-4" />
-            </button>
-            <div className="h-6 w-px bg-slate-300 mx-2"></div>
-            <button className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition">
-              <Printer className="w-5 h-5" />
-            </button>
-            <button className="px-3 py-1.5 bg-primary-700 rounded text-sm font-bold text-white hover:bg-primary-800 flex items-center gap-2 shadow-sm transition-colors">
-              <Download className="w-4 h-4" /> CSV
             </button>
           </div>
         </div>
+        <p className="text-xs text-slate-400 mt-2">参照専用（v_general_ledger）</p>
       </div>
 
-      {/* Summary Stats */}
       <div className="grid grid-cols-4 bg-slate-50 border-b border-slate-200 divide-x divide-slate-200">
         <div className="p-3 text-center">
           <p className="text-[10px] text-slate-500 uppercase tracking-wide">前月繰越</p>
@@ -217,7 +178,6 @@ const GeneralLedger: React.FC = () => {
         </div>
       </div>
 
-      {/* Table Area */}
       <div className="flex-1 overflow-x-auto bg-white mt-4 border-t border-gray-200">
         {isLoading ? (
           <div className="flex items-center justify-center h-full min-h-[200px]">

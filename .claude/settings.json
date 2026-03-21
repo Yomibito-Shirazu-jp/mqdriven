@@ -8,7 +8,7 @@
       "Bash(./node_modules/.bin/vite build)",
       "Bash(node node_modules/.bin/vite build)",
       "Bash(node node_modules/vite/bin/vite.js build)",
-      "Bash(git add App.tsx components/Sidebar.tsx components/accounting/Accounting.tsx components/accounting/CashSchedule.tsx components/accounting/GeneralLedger.tsx components/accounting/JournalLedger.tsx components/accounting/ManufacturingCostManagement.tsx components/accounting/Payables.tsx components/accounting/Receivables.tsx components/accounting/TrialBalancePage.tsx components/accounting/ProfitLossPage.tsx components/accounting/BalanceSheetPage.tsx services/dataService.ts types.ts)",
+      "Bash(git add App.tsx components/Sidebar.tsx components/Accounting.tsx components/accounting/CashSchedule.tsx components/accounting/GeneralLedger.tsx components/accounting/JournalLedger.tsx components/accounting/ManufacturingCostManagement.tsx components/accounting/Payables.tsx components/accounting/Receivables.tsx components/accounting/TrialBalancePage.tsx components/accounting/ProfitLossPage.tsx components/accounting/BalanceSheetPage.tsx services/dataService.ts types.ts)",
       "Bash(xargs grep -l \"v_journal_book\\\\|v_general_ledger\\\\|v_trial_balance\")",
       "Bash(grep -A 5 \"CREATE TABLE.*journal_batches\\\\|ALTER TABLE.*journal_batches\" /c/Users/ishij/OneDrive/Documents/GitHub/mqdriven/supabase/*.sql)",
       "Bash(grep -n \"CREATE.*VIEW.*journal\" /c/Users/ishij/OneDrive/Documents/GitHub/mqdriven/supabase/migrations/*.sql)"

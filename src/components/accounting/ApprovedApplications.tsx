@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { FileCheck, Search, Eye, Loader, X, RefreshCw, Check, Pencil, Sparkles } from 'lucide-react';
+import { FileCheck, Search, Eye, Loader, X, RefreshCw, Check, Pencil, Sparkles, Undo2 } from 'lucide-react';
 import { ApplicationWithDetails, AIJournalSuggestion, Page } from '../../../types';
 import * as dataService from '../../../services/dataService';
+import type { JournalAccountRule } from '../../../services/dataService';
 import { suggestJournalEntry } from '../../../services/geminiService';
-import { isAccountingTargetApplication } from './accountingApplicationFilter';
+import { isAccountingTargetApplication } from '../../../components/accounting/accountingApplicationFilter';
 
 interface ApprovedApplicationsProps {
   notify?: (message: string, type: 'success' | 'info' | 'error') => void;
@@ -40,7 +41,10 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
   const [bulkAiRunning, setBulkAiRunning] = useState(false);
   const [bulkAiProgress, setBulkAiProgress] = useState({ done: 0, total: 0, errors: 0 });
   const [confirmingAppId, setConfirmingAppId] = useState<string | null>(null);
+  const [revertingAppId, setRevertingAppId] = useState<string | null>(null);
   const [inlineWorkingId, setInlineWorkingId] = useState<string | null>(null);
+  const [appliedRule, setAppliedRule] = useState<JournalAccountRule | null>(null);
+  const [isRuleLoading, setIsRuleLoading] = useState(false);
 
   const normalizeHandlingStatus = (value: unknown): 'unhandled' | 'in_progress' | 'done' | 'blocked' => {
     const raw = typeof value === 'string' ? value.trim() : '';
@@ -183,16 +187,40 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
   useEffect(() => {
     setAiSuggestion(null);
     setAiError(null);
+    setAppliedRule(null);
     
     // 既存の仕訳が存在する場合は、その勘定科目を初期値としてセットする
     if (selectedApplication?.journalEntry?.lines && selectedApplication.journalEntry.lines.length > 0) {
       const debitLine = selectedApplication.journalEntry.lines.find((l: any) => (l.debit_amount || 0) > 0);
       const creditLine = selectedApplication.journalEntry.lines.find((l: any) => (l.credit_amount || 0) > 0);
-      setSelectedDebitAccountId(debitLine?.account_item_id || '');
-      setSelectedCreditAccountId(creditLine?.account_item_id || '');
+      setSelectedDebitAccountId(debitLine?.account_item_id || debitLine?.account_id || '');
+      setSelectedCreditAccountId(creditLine?.account_item_id || creditLine?.account_id || '');
     } else {
       setSelectedDebitAccountId('');
       setSelectedCreditAccountId('');
+
+      // 既存仕訳がない場合 → ルールベースで勘定科目を自動セット
+      if (selectedApplication?.applicationCodeId || selectedApplication?.application_code?.id) {
+        const codeId = selectedApplication.applicationCodeId || selectedApplication.application_code?.id;
+        const supplier = selectedApplication.formData?.invoice?.supplierName
+          || selectedApplication.formData?.supplierName
+          || selectedApplication.formData?.paymentDestination
+          || '';
+        if (codeId) {
+          setIsRuleLoading(true);
+          dataService.getJournalAccountRules(codeId, supplier).then(rule => {
+            if (rule) {
+              setAppliedRule(rule);
+              setSelectedDebitAccountId(rule.debitAccountId);
+              setSelectedCreditAccountId(rule.creditAccountId);
+            }
+          }).catch(err => {
+            console.warn('[RuleBased] Failed to fetch rules:', err);
+          }).finally(() => {
+            setIsRuleLoading(false);
+          });
+        }
+      }
     }
   }, [selectedApplicationId]); // NOTE: 選択が変わった時だけ一度実行するため、あえてselectedApplicationを含めない
 
@@ -339,13 +367,18 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
     // 既存の仕訳が存在する場合（修正モード）は自動提案を走らせず、過去の選択を維持する
     if (selectedApplication.journalEntry?.lines && selectedApplication.journalEntry.lines.length > 0) return;
 
+    // ルールベースで勘定科目がセット済みならAI提案はスキップ
+    if (appliedRule) return;
+    // ルールロード中はまだ判定できないので待つ
+    if (isRuleLoading) return;
+
     const prompt = buildSuggestionPrompt(selectedApplication);
     if (prompt.replace(/\s+/g, '').length < 30) return;
     const timer = window.setTimeout(() => {
       handleAiSuggest();
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [accountItems.length, aiSuggestion, buildSuggestionPrompt, handleAiSuggest, isAiAutoSuggest, selectedApplication]);
+  }, [accountItems.length, aiSuggestion, appliedRule, buildSuggestionPrompt, handleAiSuggest, isAiAutoSuggest, isRuleLoading, selectedApplication]);
 
   const handleGenerateJournal = useCallback(async () => {
     if (!selectedApplication) return;
@@ -417,6 +450,48 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
     } catch (err: any) {
       console.error('Failed to post journal entry:', err);
       notify?.(err?.message || '仕訳の確定に失敗しました。', 'error');
+    } finally {
+      setInlineWorkingId(null);
+    }
+  }, [loadApprovedApplications, notify]);
+
+  const handleRevertToDraft = useCallback(async () => {
+    if (!selectedApplication) return;
+    const entryId = selectedApplication.journalEntry?.id;
+    if (!entryId) {
+      notify?.('仕訳が見つかりません。', 'error');
+      return;
+    }
+    setIsWorking(true);
+    try {
+      await dataService.updateJournalEntryStatus(entryId, 'draft');
+      await dataService.updateApplicationAccountingStatus(selectedApplication.id, 'draft');
+      notify?.('確定を取り消し、下書きに戻しました。', 'success');
+      await loadApprovedApplications();
+    } catch (err: any) {
+      console.error('Failed to revert journal entry:', err);
+      notify?.(err?.message || '確定取消に失敗しました。', 'error');
+    } finally {
+      setIsWorking(false);
+    }
+  }, [loadApprovedApplications, notify, selectedApplication]);
+
+  const handleInlineRevert = useCallback(async (app: ApplicationWithDetails) => {
+    const entryId = app.journalEntry?.id;
+    if (!entryId) {
+      notify?.('仕訳が見つかりません。', 'error');
+      return;
+    }
+    setInlineWorkingId(app.id);
+    try {
+      await dataService.updateJournalEntryStatus(entryId, 'draft');
+      await dataService.updateApplicationAccountingStatus(app.id, 'draft');
+      notify?.('確定を取り消し、下書きに戻しました。', 'success');
+      setRevertingAppId(null);
+      await loadApprovedApplications();
+    } catch (err: any) {
+      console.error('Failed to revert journal entry:', err);
+      notify?.(err?.message || '確定取消に失敗しました。', 'error');
     } finally {
       setInlineWorkingId(null);
     }
@@ -593,7 +668,21 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                             </button>
                           </span>
                         )}
-                        {isPosted && <span className="text-[13px] text-slate-400">確定済</span>}
+                        {isPosted && revertingAppId !== app.id && (
+                          <button type="button" onClick={(e) => { e.stopPropagation(); setRevertingAppId(app.id); }} disabled={isInlineWorking} className="text-[13px] text-amber-600 dark:text-amber-400 hover:underline disabled:opacity-50">
+                            確定取消
+                          </button>
+                        )}
+                        {isPosted && revertingAppId === app.id && (
+                          <span className="inline-flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                            <button type="button" onClick={() => handleInlineRevert(app)} disabled={isInlineWorking} className="text-[13px] font-semibold text-amber-600 dark:text-amber-400 hover:underline disabled:opacity-50">
+                              {isInlineWorking ? '処理中...' : '戻す'}
+                            </button>
+                            <button type="button" onClick={() => setRevertingAppId(null)} className="text-[13px] text-slate-400 hover:underline">
+                              やめる
+                            </button>
+                          </span>
+                        )}
                         {!isDraft && !isPosted && <span className="text-[13px] text-slate-300 dark:text-slate-600">-</span>}
                       </td>
                     </tr>
@@ -655,11 +744,42 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
             </div>
 
             <div className="p-6 space-y-4 flex-1 min-h-0 overflow-y-auto">
+              {appliedRule && (
+                <div className="rounded-lg border border-amber-200 dark:border-amber-700/50 p-4 bg-amber-50/60 dark:bg-amber-900/20">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">📋 ルールベース提案（過去の仕訳実績から）</p>
+                      <p className="text-sm text-amber-800/80 dark:text-amber-300/80">
+                        {appliedRule.matchType === 'code_and_supplier'
+                          ? `同じ種別＋支払先の確定済み仕訳 ${appliedRule.matchCount}件から自動セット`
+                          : `同じ種別の確定済み仕訳 ${appliedRule.matchCount}件から自動セット`}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-amber-700/70 dark:text-amber-400/70 mb-0.5">借方</p>
+                      <p className="text-sm text-amber-900 dark:text-amber-200 font-medium">
+                        {appliedRule.debitAccountCode} {appliedRule.debitAccountName || '—'}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-amber-700/70 dark:text-amber-400/70 mb-0.5">貸方</p>
+                      <p className="text-sm text-amber-900 dark:text-amber-200 font-medium">
+                        {appliedRule.creditAccountCode} {appliedRule.creditAccountName || '—'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 bg-white dark:bg-slate-900/40">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">AI仕訳提案</p>
-                    <p className="text-sm text-slate-600 dark:text-slate-300">内容と振り分け先をAIが提案します。</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                      {appliedRule ? 'ルール提案が適用中です。AIで別の提案を試す場合は再提案してください。' : '内容と振り分け先をAIが提案します。'}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     <label className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
@@ -836,7 +956,17 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                   {isWorking ? <Loader className="w-5 h-5 animate-spin" /> : null}
                   仕訳確定
                 </button>
-              ) : null}
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleRevertToDraft}
+                  disabled={isWorking}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border-2 border-amber-500 text-amber-700 dark:text-amber-400 text-base font-semibold hover:bg-amber-50 dark:hover:bg-amber-500/10 disabled:opacity-50 min-w-40"
+                >
+                  {isWorking ? <Loader className="w-5 h-5 animate-spin" /> : <Undo2 className="w-5 h-5" />}
+                  確定取消（下書きに戻す）
+                </button>
+              )}
             </div>
           </div>
         </div>

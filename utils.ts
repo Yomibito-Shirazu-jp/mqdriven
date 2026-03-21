@@ -125,14 +125,8 @@ E-mail：${email}`;
 
     } catch (error) {
         console.error("Failed to create signature:", error);
-        // Fallback to a hardcoded default in case of any error
         return `\n\n---------------------------------------
-文唱堂印刷株式会社
-〒101-0025 東京都千代田区神田佐久間町3-37
-TEL：03-3851-0111　FAX：03-3861-1979
-システム管理・開発
-石嶋 洋平
-E-mail：sales.system@mqprint.co.jp
+（署名の自動生成に失敗しました。設定画面の署名情報を確認してください。）
 ---------------------------------------`;
     }
 };

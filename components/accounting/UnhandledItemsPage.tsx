@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ArrowRight, ClipboardList, Loader } from 'lucide-react';
-import type { Lead, Page } from '../../../types';
-import { LeadStatus } from '../../../types';
+import type { Lead, Page } from '../../types';
+import { LeadStatus } from '../../types';
 import ApprovedApplications from './ApprovedApplications';
 
 interface UnhandledItemsPageProps {

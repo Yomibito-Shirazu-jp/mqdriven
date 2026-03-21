@@ -16,20 +16,14 @@ interface JournalLedgerProps {
   currentUser?: EmployeeUser | null;
 }
 
-const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry, isAIOff, currentUser }) => {
+const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry: _onAddEntry, isAIOff: _isAIOff, currentUser: _currentUser }) => {
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'date', direction: 'descending' });
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingEntry, setEditingEntry] = useState<any>({});
-  const [isSaving, setIsSaving] = useState(false);
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'date', direction: 'descending' });
   const [period, setPeriod] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}`;
   });
-
-  // 管理者権限チェック
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
 
   const shiftMonth = (delta: number) => {
     const [y, m] = period.split('-').map(Number);
@@ -45,7 +39,6 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry, isAIOff, curr
       const endDate = new Date(year, month, 0);
       const endDateStr = `${endDate.getFullYear()}-${(endDate.getMonth() + 1).toString().padStart(2, '0')}-${endDate.getDate().toString().padStart(2, '0')}`;
       const data = await getJournalBookData({ startDate, endDate: endDateStr });
-      // draft・posted 両方表示（postedのみだとデータが少なすぎる）
       setEntries(data);
     } catch (err) {
       console.error('Failed to fetch journal book data:', err);
@@ -83,41 +76,6 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry, isAIOff, curr
     return { debit, credit, diff: debit - credit };
   }, [entries]);
 
-  const handleEdit = (entry: any) => {
-    // v_journal_book は集計VIEWのため直接編集不可
-    // editingId を entry.code+date の複合キーで管理（参考表示のみ）
-    if (!isAdmin) return;
-    const key = `${String(entry.date).split('T')[0]}_${entry.code}`;
-    setEditingId(key);
-    setEditingEntry({ ...entry });
-  };
-
-  const handleSave = async () => {
-    if (!isAdmin || !editingId) return;
-
-    setIsSaving(true);
-    try {
-      // v_journal_book はVIEWのため直接更新不可。
-      // 実際には accounting.journal_lines を更新する必要があるが、
-      // VIEWにはjournal_line_id がないため現時点ではキャンセルとして処理
-      setEditingId(null);
-      setEditingEntry({});
-    } catch (error) {
-      console.error('Failed to update journal line:', error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleCancel = () => {
-    setEditingId(null);
-    setEditingEntry({});
-  };
-
-  const handleFieldChange = (field: string, value: string | number) => {
-    setEditingEntry(prev => ({ ...prev, [field]: value }));
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -129,19 +87,17 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry, isAIOff, curr
 
   const monthPicker = (
     <div className="flex justify-between items-center">
-      <h2 className="text-xl font-semibold">仕訳一覧（修正用）</h2>
+      <h2 className="text-xl font-semibold">仕訳帳</h2>
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-1">
-          <button onClick={() => shiftMonth(-1)} className="p-1.5 rounded hover:bg-slate-200 transition"><ChevronLeft className="w-4 h-4" /></button>
+          <button type="button" onClick={() => shiftMonth(-1)} className="p-1.5 rounded hover:bg-slate-200 transition"><ChevronLeft className="w-4 h-4" /></button>
           <div className="relative">
             <input type="month" value={period} onChange={e => setPeriod(e.target.value)} className="pl-8 pr-3 py-1.5 bg-white border border-slate-300 rounded text-sm text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-40" />
             <Calendar className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           </div>
-          <button onClick={() => shiftMonth(1)} className="p-1.5 rounded hover:bg-slate-200 transition"><ChevronRight className="w-4 h-4" /></button>
+          <button type="button" onClick={() => shiftMonth(1)} className="p-1.5 rounded hover:bg-slate-200 transition"><ChevronRight className="w-4 h-4" /></button>
         </div>
-        <div className="text-sm text-gray-500">
-          {isAdmin ? '管理者編集可能' : '参照専用'}
-        </div>
+        <span className="text-sm text-gray-500">参照専用（v_journal_book）</span>
       </div>
     </div>
   );
@@ -153,16 +109,13 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry, isAIOff, curr
         <div className="text-center py-8">
           <EmptyState
             icon={BookOpen}
-            title="データなし"
-            description="この期間の確定済み仕訳はありません"
+            title="データ未集計"
+            description="この期間に表示できる仕訳がありません"
           />
         </div>
       </div>
     );
   }
-
-  const inputClass = "w-full p-2 rounded-md border border-slate-300 dark:border-slate-600 focus:ring-blue-500 focus:border-blue-500";
-  const labelClass = "block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1";
 
   return (
     <div className="space-y-4">

@@ -16,7 +16,7 @@
 - **スキーマの更新**: `extractInvoiceSchema`に`taxInclusive`フィールドを追加
 - **フォールバック計算**: 税込/税抜が不明な場合のデフォルト値設定
 
-### 2. 経費計上ロジックの修正 (`components/accounting/Accounting.tsx`)
+### 2. 経費計上ロジックの修正 (`components/Accounting.tsx` の `purchasing_invoices` 分岐)
 税込/税抜を正確に処理する仕訳計上ロジックに変更：
 
 #### 税込請求書の場合:

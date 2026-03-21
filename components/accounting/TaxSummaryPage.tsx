@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Loader, ChevronLeft, ChevronRight, Copy, Check } from 'lucide-react';
-import { getSupabase } from '../../services/supabaseClient';
+import { getTaxSummaryData } from '../../services/dataService';
 import { copyTsvToClipboard } from '../../utils/exportToSpreadsheet';
 
 type TaxRow = {
@@ -36,56 +36,14 @@ const TaxSummaryPage: React.FC = () => {
       const endOfMonth = new Date(year, month, 0);
       const endDate = `${endOfMonth.getFullYear()}-${(endOfMonth.getMonth() + 1).toString().padStart(2, '0')}-${endOfMonth.getDate().toString().padStart(2, '0')}`;
 
-      const supabase = getSupabase();
-
-      // Try view first, fall back to journal_entry_lines query
-      let result: TaxRow[] = [];
-      const { data: viewData, error: viewError } = await supabase
-        .from('v_tax_summary')
-        .select('*')
-        .gte('period', startDate)
-        .lte('period', endDate);
-
-      if (!viewError && viewData && viewData.length > 0) {
-        result = viewData.map((r: any) => ({
-          tax_rate: Number(r.tax_rate) || 0,
-          taxable_sales: Number(r.taxable_sales) || 0,
-          output_tax: Number(r.output_tax) || 0,
-          taxable_purchases: Number(r.taxable_purchases) || 0,
-          input_tax: Number(r.input_tax) || 0,
-        }));
-      } else {
-        // Fallback: aggregate from journal_entry_lines
-        const { data: lineData } = await supabase
-          .from('journal_entry_lines')
-          .select('account_name, debit, credit, tax_rate, journal_entries!inner(date)')
-          .gte('journal_entries.date', startDate)
-          .lte('journal_entries.date', endDate);
-
-        if (lineData && lineData.length > 0) {
-          const rateMap = new Map<number, TaxRow>();
-          lineData.forEach((line: any) => {
-            const rate = Number(line.tax_rate) || 0;
-            if (rate <= 0) return;
-            if (!rateMap.has(rate)) {
-              rateMap.set(rate, { tax_rate: rate, taxable_sales: 0, output_tax: 0, taxable_purchases: 0, input_tax: 0 });
-            }
-            const entry = rateMap.get(rate)!;
-            const acct = (line.account_name || '').toLowerCase();
-            const debit = Number(line.debit) || 0;
-            const credit = Number(line.credit) || 0;
-
-            if (acct.includes('仮受消費税') || acct.includes('売上')) {
-              entry.taxable_sales += credit;
-              entry.output_tax += Math.round(credit * rate / 100);
-            } else if (acct.includes('仮払消費税') || acct.includes('仕入') || acct.includes('経費')) {
-              entry.taxable_purchases += debit;
-              entry.input_tax += Math.round(debit * rate / 100);
-            }
-          });
-          result = Array.from(rateMap.values()).sort((a, b) => a.tax_rate - b.tax_rate);
-        }
-      }
+      const viewData = await getTaxSummaryData({ startDate, endDate });
+      const result: TaxRow[] = (viewData || []).map((r: any) => ({
+        tax_rate: Number(r.tax_rate) || 0,
+        taxable_sales: Number(r.taxable_sales) || 0,
+        output_tax: Number(r.output_tax) || 0,
+        taxable_purchases: Number(r.taxable_purchases) || 0,
+        input_tax: Number(r.input_tax) || 0,
+      }));
 
       setRows(result);
     } catch (err) {
@@ -175,7 +133,7 @@ const TaxSummaryPage: React.FC = () => {
         ) : error ? (
           <div className="flex items-center justify-center h-full text-red-500">{error}</div>
         ) : rows.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-slate-400 text-sm">この期間の消費税データはありません</div>
+          <div className="flex items-center justify-center h-full text-slate-400 text-sm">データ未集計（この期間の v_tax_summary に行がありません）</div>
         ) : (
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-100 sticky top-0 z-10 text-xs font-semibold text-slate-500">
