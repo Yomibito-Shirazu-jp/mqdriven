@@ -5669,6 +5669,170 @@ export const getJournalAccountRules = async (
     return null;
 };
 
+/**
+ * 全申請種別の仕訳ルール一覧を返す。
+ * 確定済み仕訳から申請種別×支払先ごとの最頻出の借方/貸方ペアを集計。
+ */
+export interface JournalAccountRuleEntry {
+    applicationCodeId: string;
+    applicationCodeName: string;
+    applicationCodeCode: string;
+    supplierName: string;
+    debitAccountId: string;
+    debitAccountCode: string;
+    debitAccountName: string;
+    creditAccountId: string;
+    creditAccountCode: string;
+    creditAccountName: string;
+    count: number;
+}
+
+export const getAllJournalAccountRules = async (): Promise<JournalAccountRuleEntry[]> => {
+    const supabase = getSupabase();
+
+    // 1. 確定済み申請を取得
+    const { data: postedApps, error: appsError } = await supabase
+        .from('applications')
+        .select('id, application_code_id, form_data')
+        .eq('accounting_status', 'posted')
+        .limit(500);
+
+    if (appsError) {
+        console.warn('[getAllJournalAccountRules] Failed:', appsError.message);
+        return [];
+    }
+    if (!postedApps || postedApps.length === 0) return [];
+
+    // 2. application_code名を取得
+    const codeIds = [...new Set(postedApps.map((a: any) => a.application_code_id).filter(Boolean))];
+    const codes = codeIds.length > 0
+        ? await chunkedIn(supabase, 'application_codes', 'id, code, name', 'id', codeIds)
+        : [];
+    const codeMap = new Map<string, { code: string; name: string }>();
+    for (const c of codes) {
+        codeMap.set(c.id, { code: c.code, name: c.name });
+    }
+
+    // 3. journal_batches → entries → lines を取得
+    const appIds = postedApps.map((a: any) => a.id);
+    const batches = await fetchJournalBatches(supabase, appIds);
+    const postedBatches = batches.filter((b: any) => b.status === 'posted');
+    if (postedBatches.length === 0) return [];
+
+    const batchToApp = new Map<string, string>();
+    for (const b of postedBatches) {
+        if (b.id && b.source_application_id) batchToApp.set(b.id, b.source_application_id);
+    }
+
+    const batchIds = Array.from(batchToApp.keys());
+    const entries = await chunkedIn(supabase, 'journal_entries', 'id, batch_id', 'batch_id', batchIds);
+    const entryToBatch = new Map<string, string>();
+    for (const e of entries) {
+        if (e.id && e.batch_id) entryToBatch.set(String(e.id), e.batch_id);
+    }
+
+    const entryIds = entries.map((e: any) => String(e.id)).filter(Boolean);
+    if (entryIds.length === 0) return [];
+    const lines = await chunkedIn(supabase, 'journal_lines', 'journal_entry_id, account_id, debit, credit', 'journal_entry_id', entryIds);
+
+    // 4. entryごとに debit/credit ペアを抽出
+    const entryLines = new Map<string, any[]>();
+    for (const l of lines) {
+        const key = String(l.journal_entry_id);
+        if (!entryLines.has(key)) entryLines.set(key, []);
+        entryLines.get(key)!.push(l);
+    }
+
+    // appId → formData マップ
+    const appFormData = new Map<string, any>();
+    const appCodeIdMap = new Map<string, string>();
+    for (const a of postedApps) {
+        appFormData.set(a.id, a.form_data ?? {});
+        appCodeIdMap.set(a.id, a.application_code_id);
+    }
+
+    const extractSupplier = (fd: any): string =>
+        (fd?.invoice?.supplierName || fd?.supplierName || fd?.paymentDestination || '').trim();
+
+    // 5. (codeId, supplier, debitId, creditId) → count の集計
+    const ruleCountMap = new Map<string, { codeId: string; supplier: string; debitId: string; creditId: string; count: number }>();
+
+    for (const [entryId, elines] of entryLines) {
+        const batchId = entryToBatch.get(entryId);
+        if (!batchId) continue;
+        const appId = batchToApp.get(batchId);
+        if (!appId) continue;
+
+        const debitLine = elines.find((l: any) => (l.debit ?? 0) > 0);
+        const creditLine = elines.find((l: any) => (l.credit ?? 0) > 0);
+        if (!debitLine?.account_id || !creditLine?.account_id) continue;
+
+        const codeId = appCodeIdMap.get(appId) || '';
+        const supplier = extractSupplier(appFormData.get(appId));
+        const ruleKey = `${codeId}::${supplier}::${debitLine.account_id}::${creditLine.account_id}`;
+
+        const existing = ruleCountMap.get(ruleKey);
+        if (existing) {
+            existing.count += 1;
+        } else {
+            ruleCountMap.set(ruleKey, {
+                codeId,
+                supplier,
+                debitId: debitLine.account_id,
+                creditId: creditLine.account_id,
+                count: 1,
+            });
+        }
+    }
+
+    // 6. (codeId, supplier) ごとに最頻出ペアのみ残す
+    const bestByGroup = new Map<string, { codeId: string; supplier: string; debitId: string; creditId: string; count: number }>();
+    for (const rule of ruleCountMap.values()) {
+        const groupKey = `${rule.codeId}::${rule.supplier}`;
+        const existing = bestByGroup.get(groupKey);
+        if (!existing || rule.count > existing.count) {
+            bestByGroup.set(groupKey, rule);
+        }
+    }
+
+    // 7. account名を解決
+    const allAccountIds = [...new Set(
+        Array.from(bestByGroup.values()).flatMap(r => [r.debitId, r.creditId])
+    )];
+    const accounts = allAccountIds.length > 0
+        ? await chunkedIn(supabase, 'chart_of_accounts', 'id, code, name', 'id', allAccountIds)
+        : [];
+    const accountMap = new Map<string, { code: string; name: string }>();
+    for (const a of accounts) {
+        accountMap.set(a.id, { code: a.code, name: a.name });
+    }
+
+    // 8. 結果を組み立て
+    const results: JournalAccountRuleEntry[] = [];
+    for (const rule of bestByGroup.values()) {
+        const codeInfo = codeMap.get(rule.codeId);
+        const debitAcc = accountMap.get(rule.debitId);
+        const creditAcc = accountMap.get(rule.creditId);
+        results.push({
+            applicationCodeId: rule.codeId,
+            applicationCodeName: codeInfo?.name || '不明',
+            applicationCodeCode: codeInfo?.code || '???',
+            supplierName: rule.supplier || '（全般）',
+            debitAccountId: rule.debitId,
+            debitAccountCode: debitAcc?.code || '',
+            debitAccountName: debitAcc?.name || '不明',
+            creditAccountId: rule.creditId,
+            creditAccountCode: creditAcc?.code || '',
+            creditAccountName: creditAcc?.name || '不明',
+            count: rule.count,
+        });
+    }
+
+    // count降順ソート
+    results.sort((a, b) => b.count - a.count);
+    return results;
+};
+
 // 見積データを保存する関数
 export const saveEstimate = async (params: {
     customerName: string;

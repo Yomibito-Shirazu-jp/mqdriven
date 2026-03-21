@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { FileCheck, Search, Eye, Loader, X, RefreshCw, Check, Pencil, Sparkles, Undo2 } from 'lucide-react';
 import { ApplicationWithDetails, AIJournalSuggestion, Page } from '../../../types';
 import * as dataService from '../../../services/dataService';
-import type { JournalAccountRule } from '../../../services/dataService';
+import type { JournalAccountRule, JournalAccountRuleEntry } from '../../../services/dataService';
 import { suggestJournalEntry } from '../../../services/geminiService';
 import { isAccountingTargetApplication } from '../../../components/accounting/accountingApplicationFilter';
 
@@ -45,6 +45,9 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
   const [inlineWorkingId, setInlineWorkingId] = useState<string | null>(null);
   const [appliedRule, setAppliedRule] = useState<JournalAccountRule | null>(null);
   const [isRuleLoading, setIsRuleLoading] = useState(false);
+  const [showRuleList, setShowRuleList] = useState(false);
+  const [ruleList, setRuleList] = useState<JournalAccountRuleEntry[]>([]);
+  const [isRuleListLoading, setIsRuleListLoading] = useState(false);
 
   const normalizeHandlingStatus = (value: unknown): 'unhandled' | 'in_progress' | 'done' | 'blocked' => {
     const raw = typeof value === 'string' ? value.trim() : '';
@@ -551,6 +554,25 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
           >
             全件AI仕訳提案
           </button>
+          <button
+            type="button"
+            onClick={async () => {
+              setShowRuleList(true);
+              setIsRuleListLoading(true);
+              try {
+                const rules = await dataService.getAllJournalAccountRules();
+                setRuleList(rules);
+              } catch (err) {
+                console.error('Failed to load rules:', err);
+                notify?.('ルール一覧の取得に失敗しました。', 'error');
+              } finally {
+                setIsRuleListLoading(false);
+              }
+            }}
+            className="text-[13px] text-amber-600 dark:text-amber-400 hover:underline whitespace-nowrap"
+          >
+            仕訳ルール一覧
+          </button>
         </div>
       </div>
 
@@ -967,6 +989,106 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                   確定取消（下書きに戻す）
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 仕訳ルール一覧モーダル */}
+      {showRuleList && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          role="dialog"
+          aria-modal="true"
+          aria-label="仕訳ルール一覧"
+          onClick={() => setShowRuleList(false)}
+        >
+          <div
+            className="w-full max-w-4xl max-h-[85vh] bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-4 p-5 border-b border-slate-200 dark:border-slate-700">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">📋 仕訳ルール一覧</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                  過去の確定済み仕訳から学習されたルールです。申請種別×支払先ごとに最も多い勘定科目ペアを表示しています。
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRuleList(false)}
+                className="inline-flex items-center justify-center w-9 h-9 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300"
+                aria-label="閉じる"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              {isRuleListLoading ? (
+                <div className="p-16 text-center">
+                  <Loader className="w-8 h-8 animate-spin mx-auto text-amber-600" />
+                  <p className="text-sm text-slate-500 mt-3">ルールを集計中…</p>
+                </div>
+              ) : ruleList.length === 0 ? (
+                <div className="p-16 text-center text-slate-400 dark:text-slate-500">
+                  <p className="text-lg font-semibold">ルールがまだありません</p>
+                  <p className="text-sm mt-1">仕訳を確定すると、ここに自動でルールが蓄積されます。</p>
+                </div>
+              ) : (
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">種別</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400">支払先</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400">借方</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400">貸方</th>
+                      <th className="px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 text-right whitespace-nowrap">実績</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ruleList.map((rule, idx) => (
+                      <tr key={`${rule.applicationCodeId}-${rule.supplierName}-${idx}`} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50/60 dark:hover:bg-slate-800/60">
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200">
+                            {rule.applicationCodeCode}
+                          </span>
+                          <span className="ml-1.5 text-sm text-slate-600 dark:text-slate-300">{rule.applicationCodeName}</span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700 dark:text-slate-200 max-w-48 truncate">
+                          {rule.supplierName}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-xs text-slate-400 mr-1">{rule.debitAccountCode}</span>
+                          <span className="text-sm text-slate-800 dark:text-slate-100 font-medium">{rule.debitAccountName}</span>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <span className="text-xs text-slate-400 mr-1">{rule.creditAccountCode}</span>
+                          <span className="text-sm text-slate-800 dark:text-slate-100 font-medium">{rule.creditAccountName}</span>
+                        </td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 dark:bg-amber-500/20 text-amber-800 dark:text-amber-300">
+                            {rule.count}件
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                {ruleList.length > 0 ? `${ruleList.length}件のルール` : ''}
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowRuleList(false)}
+                className="px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700"
+              >
+                閉じる
+              </button>
             </div>
           </div>
         </div>
