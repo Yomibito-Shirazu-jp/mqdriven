@@ -55,8 +55,8 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
     return 'unhandled';
   };
 
-  const loadApprovedApplications = useCallback(async () => {
-    setIsLoading(true);
+  const loadApprovedApplications = useCallback(async (background = false) => {
+    if (!background) setIsLoading(true);
     setError(null);
     try {
       const data = await dataService.getApprovedApplications(codes);
@@ -65,12 +65,12 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
       setError('承認済み申請の取得に失敗しました。');
       console.error(err);
     } finally {
-      setIsLoading(false);
+      if (!background) setIsLoading(false);
     }
   }, [codes]);
 
   useEffect(() => {
-    loadApprovedApplications();
+    loadApprovedApplications(false);
   }, [loadApprovedApplications]);
 
   useEffect(() => {
@@ -330,7 +330,7 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
       setBulkAiProgress(prev => ({ ...prev, done: Math.min(i + BATCH, targets.length), errors }));
     }
     setBulkAiRunning(false);
-    await loadApprovedApplications();
+    await loadApprovedApplications(true);
     notify?.(
       `AI仕訳提案完了: ${targets.length - errors}件成功${errors > 0 ? `、${errors}件失敗` : ''}`,
       errors > 0 ? 'info' : 'success'
@@ -405,7 +405,7 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
         });
         await dataService.updateApplicationAccountingStatus(selectedApplication.id, 'draft');
         notify?.('仕訳を生成しました。', 'success');
-        await loadApprovedApplications();
+        await loadApprovedApplications(true);
         return;
       }
 
@@ -431,6 +431,13 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
     }
     setIsWorking(true);
     try {
+      const isPosted = (selectedApplication.accountingStatus ?? selectedApplication.accounting_status) === 'posted';
+      
+      // 確定済みの場合は一旦下書きに戻す
+      if (isPosted) {
+        await dataService.updateJournalEntryStatus(entry.id, 'draft');
+      }
+
       const debitLine = entry.lines.find((l: any) => (l.debit_amount || 0) > 0);
       const creditLine = entry.lines.find((l: any) => (l.credit_amount || 0) > 0);
       const amount = deriveAmount(selectedApplication);
@@ -447,8 +454,16 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
           ...(amount != null && amount > 0 ? { credit: amount } : {}),
         });
       }
-      notify?.('仕訳を修正しました。', 'success');
-      await loadApprovedApplications();
+
+      // 確定済みだった場合は再確定
+      if (isPosted) {
+        await dataService.updateJournalEntryStatus(entry.id, 'posted');
+        notify?.('仕訳を修正し、再確定しました。', 'success');
+      } else {
+        notify?.('仕訳を修正しました。', 'success');
+      }
+
+      await loadApprovedApplications(true);
     } catch (err: any) {
       console.error('Failed to update journal lines:', err);
       notify?.(err?.message || '仕訳の修正に失敗しました。', 'error');
@@ -468,7 +483,7 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
     try {
       await dataService.updateJournalEntryStatus(entryId, 'posted');
       notify?.('仕訳を確定しました。', 'success');
-      await loadApprovedApplications();
+      await loadApprovedApplications(true);
     } catch (err: any) {
       console.error('Failed to post journal entry:', err);
       notify?.(err?.message || '仕訳の確定に失敗しました。', 'error');
@@ -488,7 +503,7 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
       await dataService.updateJournalEntryStatus(entryId, 'posted');
       notify?.('仕訳を確定しました。', 'success');
       setConfirmingAppId(null);
-      await loadApprovedApplications();
+      await loadApprovedApplications(true);
     } catch (err: any) {
       console.error('Failed to post journal entry:', err);
       notify?.(err?.message || '仕訳の確定に失敗しました。', 'error');
@@ -509,7 +524,7 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
       await dataService.updateJournalEntryStatus(entryId, 'draft');
       await dataService.updateApplicationAccountingStatus(selectedApplication.id, 'draft');
       notify?.('確定を取り消し、下書きに戻しました。', 'success');
-      await loadApprovedApplications();
+      await loadApprovedApplications(true);
     } catch (err: any) {
       console.error('Failed to revert journal entry:', err);
       notify?.(err?.message || '確定取消に失敗しました。', 'error');
@@ -530,7 +545,7 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
       await dataService.updateApplicationAccountingStatus(app.id, 'draft');
       notify?.('確定を取り消し、下書きに戻しました。', 'success');
       setRevertingAppId(null);
-      await loadApprovedApplications();
+      await loadApprovedApplications(true);
     } catch (err: any) {
       console.error('Failed to revert journal entry:', err);
       notify?.(err?.message || '確定取消に失敗しました。', 'error');
@@ -705,13 +720,9 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                         )}
                       </td>
                       <td className="px-5 py-4 whitespace-nowrap">
-                        {hasJournal && !isPosted ? (
+                        {hasJournal ? (
                           <button type="button" onClick={(e) => { e.stopPropagation(); setSelectedApplicationId(app.id); }} className="text-[13px] text-teal-700 dark:text-teal-400 hover:underline">
-                            修正
-                          </button>
-                        ) : hasJournal && isPosted ? (
-                          <button type="button" onClick={(e) => { e.stopPropagation(); setRevertingAppId(app.id); }} disabled={isInlineWorking} className="text-[13px] text-amber-600 dark:text-amber-400 hover:underline disabled:opacity-50">
-                            修正
+                            詳細/修正
                           </button>
                         ) : (
                           <span className="text-[13px] text-slate-300 dark:text-slate-600">-</span>
@@ -1033,15 +1044,27 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                   </button>
                 </>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleRevertToDraft}
-                  disabled={isWorking}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border-2 border-amber-500 text-amber-700 dark:text-amber-400 text-base font-semibold hover:bg-amber-50 dark:hover:bg-amber-500/10 disabled:opacity-50 min-w-40"
-                >
-                  {isWorking ? <Loader className="w-5 h-5 animate-spin" /> : <Undo2 className="w-5 h-5" />}
-                  確定取消（下書きに戻す）
-                </button>
+                <>
+                  <div className="flex-1"></div>
+                  <button
+                    type="button"
+                    onClick={handleUpdateJournal}
+                    disabled={isWorking || !canGenerateJournal}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-lg border-2 border-indigo-500 text-indigo-700 dark:text-indigo-300 text-base font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-500/10 disabled:opacity-50 min-w-40"
+                  >
+                    {isWorking ? <Loader className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                    修正して上書き確定
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRevertToDraft}
+                    disabled={isWorking}
+                    className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border-2 border-amber-500 text-amber-700 dark:text-amber-400 text-base font-semibold hover:bg-amber-50 dark:hover:bg-amber-500/10 disabled:opacity-50 min-w-40"
+                  >
+                    {isWorking ? <Loader className="w-5 h-5 animate-spin" /> : <Undo2 className="w-5 h-5" />}
+                    確定取消（下書きへ）
+                  </button>
+                </>
               )}
             </div>
           </div>
