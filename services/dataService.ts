@@ -5524,145 +5524,64 @@ export const getJournalAccountRules = async (
 ): Promise<JournalAccountRule | null> => {
     const supabase = getSupabase();
 
-    // 1. 同じ application_code_id の confirmed (posted) 申請IDを取得
-    const { data: postedApps, error: appsError } = await supabase
-        .from('applications')
-        .select('id, form_data, application_code_id')
-        .eq('application_code_id', applicationCodeId)
-        .eq('accounting_status', 'posted')
-        .limit(200);
-
-    if (appsError) {
-        console.warn('[getJournalAccountRules] Failed to fetch posted applications:', appsError.message);
-        return null;
+    const { data: rules, error } = await supabase
+        .from('v_journal_account_rules')
+        .select('*')
+        .eq('application_code_id', applicationCodeId);
+        
+    // VIEWが未適用の場合のフォールバック
+    if (error || !rules) {
+        if (error?.code !== '42P01') {
+            console.warn('[getJournalAccountRules] Failed to fetch:', error?.message);
+        }
+        return null; // DBマイグレーション未適用の場合は無視
     }
-
-    if (!postedApps || postedApps.length === 0) return null;
-
-    // supplierName による分類
-    const extractSupplier = (app: any): string => {
-        const fd = app.form_data ?? {};
-        return (
-            fd.invoice?.supplierName ||
-            fd.supplierName ||
-            fd.paymentDestination ||
-            ''
-        ).trim().toLowerCase();
-    };
 
     const normalizedSupplier = (supplierName || '').trim().toLowerCase();
-    const exactMatchIds: string[] = [];
-    const allIds: string[] = [];
-
-    for (const app of postedApps) {
-        allIds.push(app.id);
-        if (normalizedSupplier && extractSupplier(app) === normalizedSupplier) {
-            exactMatchIds.push(app.id);
-        }
-    }
-
-    // ルール抽出ヘルパー
-    const findMostCommonPair = async (appIds: string[]): Promise<{
-        debitAccountId: string;
-        creditAccountId: string;
-        count: number;
-    } | null> => {
-        if (appIds.length === 0) return null;
-
-        const batches = await fetchJournalBatches(supabase, appIds);
-        const postedBatches = batches.filter((b: any) => b.status === 'posted');
-        if (postedBatches.length === 0) return null;
-
-        const batchIds = postedBatches.map((b: any) => b.id);
-        const entries = await chunkedIn(supabase, 'journal_entries', 'id, batch_id', 'batch_id', batchIds);
-        if (entries.length === 0) return null;
-
-        const entryIds = entries.map((e: any) => String(e.id)).filter(Boolean);
-        const lines = await chunkedIn(supabase, 'journal_lines', 'journal_entry_id, account_id, debit, credit', 'journal_entry_id', entryIds);
-
-        // entry_id ごとに borrower/creditor ペアを集計
-        const pairCounts = new Map<string, number>();
-        const entryLines = new Map<string, any[]>();
-        for (const line of lines) {
-            const key = String(line.journal_entry_id);
-            if (!entryLines.has(key)) entryLines.set(key, []);
-            entryLines.get(key)!.push(line);
-        }
-
-        for (const [, elines] of entryLines) {
-            const debitLine = elines.find((l: any) => (l.debit ?? 0) > 0);
-            const creditLine = elines.find((l: any) => (l.credit ?? 0) > 0);
-            if (!debitLine?.account_id || !creditLine?.account_id) continue;
-            const pairKey = `${debitLine.account_id}::${creditLine.account_id}`;
-            pairCounts.set(pairKey, (pairCounts.get(pairKey) || 0) + 1);
-        }
-
-        if (pairCounts.size === 0) return null;
-
-        // 最頻出ペア
-        let bestKey = '';
-        let bestCount = 0;
-        for (const [key, count] of pairCounts) {
-            if (count > bestCount) {
-                bestKey = key;
-                bestCount = count;
+    
+    // 優先度1: application_code + supplierName 完全一致
+    let bestExactRule: any = null;
+    if (normalizedSupplier) {
+        for (const rule of rules) {
+            const ruleSupplier = (rule.supplier_name || '').trim().toLowerCase();
+            if (ruleSupplier === normalizedSupplier) {
+                if (!bestExactRule || rule.usage_count > bestExactRule.usage_count) {
+                    bestExactRule = rule;
+                }
             }
         }
-
-        const [debitAccountId, creditAccountId] = bestKey.split('::');
-        return { debitAccountId, creditAccountId, count: bestCount };
-    };
-
-    // 勘定科目名を解決
-    const resolveAccountNames = async (
-        debitId: string,
-        creditId: string,
-    ): Promise<{ debitCode?: string; debitName?: string; creditCode?: string; creditName?: string }> => {
-        const ids = [debitId, creditId].filter(Boolean);
-        if (ids.length === 0) return {};
-        const accounts = await chunkedIn(supabase, 'chart_of_accounts', 'id, code, name', 'id', ids);
-        const map = new Map<string, { code: string; name: string }>();
-        for (const acc of accounts) {
-            map.set(acc.id, { code: acc.code, name: acc.name });
-        }
-        return {
-            debitCode: map.get(debitId)?.code,
-            debitName: map.get(debitId)?.name,
-            creditCode: map.get(creditId)?.code,
-            creditName: map.get(creditId)?.name,
-        };
-    };
-
-    // 優先度1: application_code + supplierName 完全一致
-    if (exactMatchIds.length > 0) {
-        const pair = await findMostCommonPair(exactMatchIds);
-        if (pair && pair.count >= 1) {
-            const names = await resolveAccountNames(pair.debitAccountId, pair.creditAccountId);
+        
+        if (bestExactRule) {
             return {
-                debitAccountId: pair.debitAccountId,
-                debitAccountCode: names.debitCode,
-                debitAccountName: names.debitName,
-                creditAccountId: pair.creditAccountId,
-                creditAccountCode: names.creditCode,
-                creditAccountName: names.creditName,
-                matchCount: pair.count,
+                debitAccountId: bestExactRule.debit_account_id,
+                debitAccountCode: bestExactRule.debit_account_code,
+                debitAccountName: bestExactRule.debit_account_name,
+                creditAccountId: bestExactRule.credit_account_id,
+                creditAccountCode: bestExactRule.credit_account_code,
+                creditAccountName: bestExactRule.credit_account_name,
+                matchCount: bestExactRule.usage_count,
                 matchType: 'code_and_supplier',
             };
         }
     }
 
-    // 優先度2: application_code のみ一致
-    const pair = await findMostCommonPair(allIds);
-    if (pair && pair.count >= 2) { // 種別のみの場合は2件以上で信頼
-        const names = await resolveAccountNames(pair.debitAccountId, pair.creditAccountId);
+    // 優先度2: application_code のみ一致（一番使われている仕訳ペア）
+    let bestFallbackRule: any = null;
+    for (const rule of rules) {
+        if (!bestFallbackRule || rule.usage_count > bestFallbackRule.usage_count) {
+            bestFallbackRule = rule;
+        }
+    }
+
+    if (bestFallbackRule && bestFallbackRule.usage_count >= 2) {
         return {
-            debitAccountId: pair.debitAccountId,
-            debitAccountCode: names.debitCode,
-            debitAccountName: names.debitName,
-            creditAccountId: pair.creditAccountId,
-            creditAccountCode: names.creditCode,
-            creditAccountName: names.creditName,
-            matchCount: pair.count,
+            debitAccountId: bestFallbackRule.debit_account_id,
+            debitAccountCode: bestFallbackRule.debit_account_code,
+            debitAccountName: bestFallbackRule.debit_account_name,
+            creditAccountId: bestFallbackRule.credit_account_id,
+            creditAccountCode: bestFallbackRule.credit_account_code,
+            creditAccountName: bestFallbackRule.credit_account_name,
+            matchCount: bestFallbackRule.usage_count,
             matchType: 'code_only',
         };
     }
@@ -5691,145 +5610,45 @@ export interface JournalAccountRuleEntry {
 export const getAllJournalAccountRules = async (): Promise<JournalAccountRuleEntry[]> => {
     const supabase = getSupabase();
 
-    // 1. 確定済み申請を取得
-    const { data: postedApps, error: appsError } = await supabase
-        .from('applications')
-        .select('id, application_code_id, form_data')
-        .eq('accounting_status', 'posted')
-        .limit(500);
+    const { data: rules, error } = await supabase
+        .from('v_journal_account_rules')
+        .select('*')
+        .order('usage_count', { ascending: false });
 
-    if (appsError) {
-        console.warn('[getAllJournalAccountRules] Failed:', appsError.message);
+    if (error || !rules) {
+        if (error?.code !== '42P01') {
+            console.warn('[getAllJournalAccountRules] Failed to fetch:', error?.message);
+        }
         return [];
     }
-    if (!postedApps || postedApps.length === 0) return [];
 
-    // 2. application_code名を取得
-    const codeIds = [...new Set(postedApps.map((a: any) => a.application_code_id).filter(Boolean))];
-    const codes = codeIds.length > 0
-        ? await chunkedIn(supabase, 'application_codes', 'id, code, name', 'id', codeIds)
-        : [];
-    const codeMap = new Map<string, { code: string; name: string }>();
-    for (const c of codes) {
-        codeMap.set(c.id, { code: c.code, name: c.name });
-    }
-
-    // 3. journal_batches → entries → lines を取得
-    const appIds = postedApps.map((a: any) => a.id);
-    const batches = await fetchJournalBatches(supabase, appIds);
-    const postedBatches = batches.filter((b: any) => b.status === 'posted');
-    if (postedBatches.length === 0) return [];
-
-    const batchToApp = new Map<string, string>();
-    for (const b of postedBatches) {
-        if (b.id && b.source_application_id) batchToApp.set(b.id, b.source_application_id);
-    }
-
-    const batchIds = Array.from(batchToApp.keys());
-    const entries = await chunkedIn(supabase, 'journal_entries', 'id, batch_id', 'batch_id', batchIds);
-    const entryToBatch = new Map<string, string>();
-    for (const e of entries) {
-        if (e.id && e.batch_id) entryToBatch.set(String(e.id), e.batch_id);
-    }
-
-    const entryIds = entries.map((e: any) => String(e.id)).filter(Boolean);
-    if (entryIds.length === 0) return [];
-    const lines = await chunkedIn(supabase, 'journal_lines', 'journal_entry_id, account_id, debit, credit', 'journal_entry_id', entryIds);
-
-    // 4. entryごとに debit/credit ペアを抽出
-    const entryLines = new Map<string, any[]>();
-    for (const l of lines) {
-        const key = String(l.journal_entry_id);
-        if (!entryLines.has(key)) entryLines.set(key, []);
-        entryLines.get(key)!.push(l);
-    }
-
-    // appId → formData マップ
-    const appFormData = new Map<string, any>();
-    const appCodeIdMap = new Map<string, string>();
-    for (const a of postedApps) {
-        appFormData.set(a.id, a.form_data ?? {});
-        appCodeIdMap.set(a.id, a.application_code_id);
-    }
-
-    const extractSupplier = (fd: any): string =>
-        (fd?.invoice?.supplierName || fd?.supplierName || fd?.paymentDestination || '').trim();
-
-    // 5. (codeId, supplier, debitId, creditId) → count の集計
-    const ruleCountMap = new Map<string, { codeId: string; supplier: string; debitId: string; creditId: string; count: number }>();
-
-    for (const [entryId, elines] of entryLines) {
-        const batchId = entryToBatch.get(entryId);
-        if (!batchId) continue;
-        const appId = batchToApp.get(batchId);
-        if (!appId) continue;
-
-        const debitLine = elines.find((l: any) => (l.debit ?? 0) > 0);
-        const creditLine = elines.find((l: any) => (l.credit ?? 0) > 0);
-        if (!debitLine?.account_id || !creditLine?.account_id) continue;
-
-        const codeId = appCodeIdMap.get(appId) || '';
-        const supplier = extractSupplier(appFormData.get(appId));
-        const ruleKey = `${codeId}::${supplier}::${debitLine.account_id}::${creditLine.account_id}`;
-
-        const existing = ruleCountMap.get(ruleKey);
-        if (existing) {
-            existing.count += 1;
-        } else {
-            ruleCountMap.set(ruleKey, {
-                codeId,
-                supplier,
-                debitId: debitLine.account_id,
-                creditId: creditLine.account_id,
-                count: 1,
-            });
-        }
-    }
-
-    // 6. (codeId, supplier) ごとに最頻出ペアのみ残す
-    const bestByGroup = new Map<string, { codeId: string; supplier: string; debitId: string; creditId: string; count: number }>();
-    for (const rule of ruleCountMap.values()) {
-        const groupKey = `${rule.codeId}::${rule.supplier}`;
+    // 重複を排除して返す（application_code_id × supplier_name で一番使われているものだけ）
+    const bestByGroup = new Map<string, any>();
+    for (const rule of rules) {
+        const groupKey = `${rule.application_code_id}::${(rule.supplier_name || '').trim().toLowerCase()}`;
         const existing = bestByGroup.get(groupKey);
-        if (!existing || rule.count > existing.count) {
+        if (!existing || rule.usage_count > existing.usage_count) {
             bestByGroup.set(groupKey, rule);
         }
     }
 
-    // 7. account名を解決
-    const allAccountIds = [...new Set(
-        Array.from(bestByGroup.values()).flatMap(r => [r.debitId, r.creditId])
-    )];
-    const accounts = allAccountIds.length > 0
-        ? await chunkedIn(supabase, 'chart_of_accounts', 'id, code, name', 'id', allAccountIds)
-        : [];
-    const accountMap = new Map<string, { code: string; name: string }>();
-    for (const a of accounts) {
-        accountMap.set(a.id, { code: a.code, name: a.name });
-    }
-
-    // 8. 結果を組み立て
     const results: JournalAccountRuleEntry[] = [];
     for (const rule of bestByGroup.values()) {
-        const codeInfo = codeMap.get(rule.codeId);
-        const debitAcc = accountMap.get(rule.debitId);
-        const creditAcc = accountMap.get(rule.creditId);
         results.push({
-            applicationCodeId: rule.codeId,
-            applicationCodeName: codeInfo?.name || '不明',
-            applicationCodeCode: codeInfo?.code || '???',
-            supplierName: rule.supplier || '（全般）',
-            debitAccountId: rule.debitId,
-            debitAccountCode: debitAcc?.code || '',
-            debitAccountName: debitAcc?.name || '不明',
-            creditAccountId: rule.creditId,
-            creditAccountCode: creditAcc?.code || '',
-            creditAccountName: creditAcc?.name || '不明',
-            count: rule.count,
+            applicationCodeId: rule.application_code_id,
+            applicationCodeName: rule.application_code_name,
+            applicationCodeCode: rule.application_code_code,
+            supplierName: rule.supplier_name || '',
+            debitAccountId: rule.debit_account_id,
+            debitAccountCode: rule.debit_account_code,
+            debitAccountName: rule.debit_account_name,
+            creditAccountId: rule.credit_account_id,
+            creditAccountCode: rule.credit_account_code,
+            creditAccountName: rule.credit_account_name,
+            count: rule.usage_count,
         });
     }
 
-    // count降順ソート
     results.sort((a, b) => b.count - a.count);
     return results;
 };

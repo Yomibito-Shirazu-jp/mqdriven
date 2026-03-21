@@ -264,8 +264,16 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
         .join('\n');
       const amount = deriveAmount(app);
       const amountText = amount ? `¥${amount.toLocaleString()}` : '';
+
+      const supplierName =
+        data.invoice?.supplierName ||
+        data.supplierName ||
+        data.paymentDestination ||
+        '';
+
       const body = [
         `件名: ${buildTitle(app)}`,
+        `支払先: ${supplierName}`,
         `種別: ${app.application_code?.name || ''}`,
         `申請内容: ${data.details || data.notes || data.invoice?.description || ''}`,
         `金額: ${amountText}`,
