@@ -165,8 +165,8 @@ const ApprovalForm: React.FC<ApprovalFormProps> = ({ onSuccess, applicationCodeI
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         if (name === 'amount') {
-            // Only allow numbers and 0
-            const numericValue = value.replace(/[^0-9]/g, '');
+            // Allow numbers, decimals, and negative signs
+            const numericValue = value.replace(/[^0-9.-]/g, '');
             setFormData(prev => ({ ...prev, [name]: numericValue }));
         } else {
             setFormData(prev => ({ ...prev, [name]: value }));
