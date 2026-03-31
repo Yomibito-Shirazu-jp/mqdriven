@@ -95,7 +95,7 @@ html.dark select#user-select optgroup {
 }
 
 html.dark body {
-  background-color: #0f172a;
+  background-color: #0f172a; /* slate-900 */
   color: #e2e8f0;
 }
 
@@ -144,13 +144,6 @@ html.dark .hover\:bg-orange-100:hover { background-color: rgb(124 45 18 / 0.3); 
 html.dark .rounded-2xl:not([class*="dark:bg-"]):not([class*="bg-white"]) {
   background-color: rgb(17 24 39 / 0.6);
 }
-/* Remove mq-page card border/shadow in dark mode - no more two-tone */
-html.dark .mq-page {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-}
-
 html.dark {
   --mq-border: #1e293b;
   --mq-bg: #0f172a;
@@ -165,31 +158,27 @@ html.dark {
   --mq-card-shadow: 0 10px 30px rgba(2, 6, 23, 0.4);
 }
 
-/* MQ base page styles */
+/* MQ base page styles - flat layout, no card wrapper */
 .mq-page {
   width: min(100%, var(--mq-page-width));
   margin: 0 auto;
-  border-radius: var(--mq-card-radius);
-  background: var(--mq-card-bg);
-  border: 1px solid var(--mq-border);
-  box-shadow: var(--mq-card-shadow);
 }
 
-.mq-page h1,
-.mq-page h2,
-.mq-page h3 {
+.mq-theme h1,
+.mq-theme h2,
+.mq-theme h3 {
   color: var(--mq-text);
 }
 
-.mq-page table {
+.mq-theme table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
 }
 
-.mq-page thead th {
-  background: var(--mq-card-bg);
-  color: #6b7280;
+.mq-theme thead th {
+  background: transparent;
+  color: var(--mq-muted);
   font-weight: 500;
   font-size: 0.8rem;
   letter-spacing: 0.02em;
@@ -199,15 +188,15 @@ html.dark {
   text-align: left;
 }
 
-.mq-page tbody td {
+.mq-theme tbody td {
   border-bottom: 1px solid var(--mq-border);
   padding: 1.25rem 1.5rem;
   font-size: 0.85rem;
-  color: #1f2937;
+  color: var(--mq-text);
   font-weight: 500;
 }
 
-.mq-page tbody tr:hover {
+.mq-theme tbody tr:hover {
   background: var(--mq-table-hover);
 }
 
