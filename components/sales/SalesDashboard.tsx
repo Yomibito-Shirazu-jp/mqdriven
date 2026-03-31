@@ -81,7 +81,7 @@ const SalesDashboard: React.FC<SalesDashboardProps> = () => {
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Monthly Sales Trend */}
-                <div className="p-6 rounded-2xl shadow-sm">
+                <div className="bg-white dark:bg-slate-800/60 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/50">
                     <h3 className="text-xl font-semibold mb-4">月別売上推移</h3>
                     <ResponsiveContainer width="100%" height={300}>
                         <LineChart data={metrics.monthlySalesData}>
@@ -99,7 +99,7 @@ const SalesDashboard: React.FC<SalesDashboardProps> = () => {
                 </div>
 
                 {/* Order Type Breakdown */}
-                <div className="p-6 rounded-2xl shadow-sm">
+                <div className="bg-white dark:bg-slate-800/60 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/50">
                     <h3 className="text-xl font-semibold mb-4">注文タイプ別内訳</h3>
                     <ResponsiveContainer width="100%" height={300}>
                         <PieChart>
@@ -125,15 +125,15 @@ const SalesDashboard: React.FC<SalesDashboardProps> = () => {
             {/* Additional Analysis */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Top Customers */}
-                <div className="p-6 rounded-2xl shadow-sm">
+                <div className="bg-white dark:bg-slate-800/60 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/50">
                     <h3 className="text-xl font-semibold mb-4">トップ顧客</h3>
                     <div className="space-y-2">
                         {metrics.topCustomers.slice(0, 5).map((customer, index) => (
-                            <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                            <div key={index} className="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-700/40 rounded">
                                 <span className="font-medium">{customer.customer_name}</span>
                                 <div className="text-right">
                                     <div className="text-sm font-semibold">{formatJPY(customer.sales)}</div>
-                                    <div className="text-xs text-gray-500">{customer.orders}件</div>
+                                    <div className="text-xs text-slate-500 dark:text-slate-400">{customer.orders}件</div>
                                 </div>
                             </div>
                         ))}
@@ -141,7 +141,7 @@ const SalesDashboard: React.FC<SalesDashboardProps> = () => {
                 </div>
 
                 {/* Status Breakdown */}
-                <div className="p-6 rounded-2xl shadow-sm">
+                <div className="bg-white dark:bg-slate-800/60 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/50">
                     <h3 className="text-xl font-semibold mb-4">ステータス別内訳</h3>
                     <ResponsiveContainer width="100%" height={300}>
                         <BarChart data={metrics.statusBreakdown.map(item => ({ name: item.status, 件数: item.count }))}>
@@ -157,7 +157,7 @@ const SalesDashboard: React.FC<SalesDashboardProps> = () => {
 
             {/* Order Type Count & Conversion */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="p-6 rounded-2xl shadow-sm">
+                <div className="bg-white dark:bg-slate-800/60 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/50">
                     <h3 className="text-xl font-semibold mb-4">注文タイプ（件数ベース）</h3>
                     <ResponsiveContainer width="100%" height={300}>
                         <PieChart>
@@ -177,19 +177,19 @@ const SalesDashboard: React.FC<SalesDashboardProps> = () => {
                     </ResponsiveContainer>
                 </div>
 
-                <div className="p-6 rounded-2xl shadow-sm">
+                <div className="bg-white dark:bg-slate-800/60 p-6 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700/50">
                     <h3 className="text-xl font-semibold mb-4">コンバージョン（完了案件）</h3>
                     <div className="space-y-4">
                         <div className="flex justify-between items-center">
-                            <span className="text-gray-600">完了件数</span>
+                            <span className="text-slate-600 dark:text-slate-400">完了件数</span>
                             <span className="text-2xl font-bold text-green-600">{conversionStats.converted}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-gray-600">コンバージョン率</span>
+                            <span className="text-slate-600 dark:text-slate-400">コンバージョン率</span>
                             <span className="text-2xl font-bold text-blue-600">{conversionStats.conversionRate.toFixed(1)}%</span>
                         </div>
                         <div className="flex justify-between items-center">
-                            <span className="text-gray-600">総注文数</span>
+                            <span className="text-slate-600 dark:text-slate-400">総注文数</span>
                             <span className="text-2xl font-bold">{metrics.totalOrders}</span>
                         </div>
                     </div>

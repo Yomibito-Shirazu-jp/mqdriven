@@ -99,6 +99,52 @@ html.dark body {
   color: #e2e8f0;
 }
 
+/* ── Global dark-mode overrides for light backgrounds ── */
+/* Fixes two-tone issue: light gray backgrounds invisible in dark mode */
+html.dark .bg-slate-50 { background-color: rgb(30 41 59 / 0.4); }
+html.dark .bg-slate-100 { background-color: rgb(30 41 59 / 0.6); }
+html.dark .bg-gray-50 { background-color: rgb(30 41 59 / 0.4); }
+html.dark .bg-gray-100 { background-color: rgb(30 41 59 / 0.6); }
+/* Semantic alert colors in dark mode */
+html.dark .bg-red-50 { background-color: rgb(127 29 29 / 0.2); }
+html.dark .bg-green-50 { background-color: rgb(20 83 45 / 0.2); }
+html.dark .bg-yellow-50 { background-color: rgb(113 63 18 / 0.2); }
+html.dark .bg-orange-50 { background-color: rgb(124 45 18 / 0.2); }
+html.dark .bg-amber-50 { background-color: rgb(120 53 15 / 0.2); }
+html.dark .bg-blue-50 { background-color: rgb(30 58 138 / 0.2); }
+html.dark .bg-indigo-50 { background-color: rgb(49 46 129 / 0.2); }
+html.dark .bg-purple-50 { background-color: rgb(59 7 100 / 0.2); }
+/* Light borders */
+html.dark .border-slate-100 { border-color: rgb(51 65 85 / 0.5); }
+html.dark .border-slate-200 { border-color: rgb(51 65 85 / 0.6); }
+html.dark .border-gray-100 { border-color: rgb(51 65 85 / 0.5); }
+html.dark .border-gray-200 { border-color: rgb(51 65 85 / 0.6); }
+html.dark .border-red-200 { border-color: rgb(127 29 29 / 0.4); }
+html.dark .border-green-200 { border-color: rgb(20 83 45 / 0.4); }
+html.dark .border-yellow-200 { border-color: rgb(113 63 18 / 0.4); }
+html.dark .border-orange-200 { border-color: rgb(124 45 18 / 0.4); }
+/* Text colors: improve readability in dark mode */
+html.dark .text-slate-500 { color: #94a3b8; }
+html.dark .text-slate-600 { color: #94a3b8; }
+html.dark .text-slate-700 { color: #cbd5e1; }
+html.dark .text-gray-500 { color: #94a3b8; }
+html.dark .text-gray-600 { color: #94a3b8; }
+html.dark .text-gray-700 { color: #cbd5e1; }
+/* Semantic text */
+html.dark .text-red-700 { color: #fca5a5; }
+html.dark .text-green-700 { color: #86efac; }
+html.dark .text-orange-600 { color: #fdba74; }
+/* Hover states */
+html.dark .hover\:bg-slate-50:hover { background-color: rgb(30 41 59 / 0.5); }
+html.dark .hover\:bg-gray-50:hover { background-color: rgb(30 41 59 / 0.5); }
+html.dark .hover\:bg-red-50:hover { background-color: rgb(127 29 29 / 0.3); }
+html.dark .hover\:bg-red-100:hover { background-color: rgb(127 29 29 / 0.4); }
+html.dark .hover\:bg-orange-100:hover { background-color: rgb(124 45 18 / 0.3); }
+/* Cards without explicit dark bg - give rounded containers a background */
+html.dark .rounded-2xl:not([class*="dark:bg-"]):not([class*="bg-white"]) {
+  background-color: rgb(17 24 39 / 0.6);
+}
+
 html.dark {
   --mq-border: #273246;
   --mq-bg: #0b1220;
