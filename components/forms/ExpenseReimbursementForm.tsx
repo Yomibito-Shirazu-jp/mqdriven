@@ -871,6 +871,7 @@ const ExpenseReimbursementForm: React.FC<ExpenseReimbursementFormProps> = (props
             isInternalExpense,
             invoice: {
                 ...invoice,
+                totalGross: pinnedTotalGross !== null ? pinnedTotalGross : invoice.totalGross,
                 ocrExtractedFields: Array.from(invoice.ocrExtractedFields),
             },
             mqAccounting: {
