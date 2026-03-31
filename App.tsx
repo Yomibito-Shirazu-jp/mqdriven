@@ -1858,7 +1858,7 @@ const App: React.FC = () => {
     };
 
     return (
-        <div className="h-screen overflow-hidden bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-sans flex mq-theme">
+        <div className="h-screen overflow-hidden bg-slate-100 dark:bg-[#0f172a] text-slate-800 dark:text-slate-200 font-sans flex mq-theme">
             <Sidebar
                 currentPage={currentPage}
                 onNavigate={handleNavigate}
@@ -1868,7 +1868,7 @@ const App: React.FC = () => {
                 approvalsCount={pendingApprovalCount}
                 accountingCounts={accountingCounts}
             />
-            <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 relative min-h-0">
+            <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-[#0f172a] relative min-h-0">
                 {dbError && <GlobalErrorBanner error={dbError} onRetry={loadAllData} onShowSetup={() => setIsSetupModalOpen(true)} />}
                 {/* Mobile header */}
                 <div className="sm:hidden fixed top-0 left-0 right-0 z-30 bg-white p-4 border-b border-slate-200 shadow-sm">
@@ -1902,7 +1902,7 @@ const App: React.FC = () => {
                   <Briefcase className="w-5 h-5" />
                   業務プロセス管理
                 </button>
-                <div className={`flex-1 overflow-y-auto pt-20 sm:pt-0 bg-white dark:bg-slate-900 transition-opacity duration-150 ${isLoading && !dbError ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className={`flex-1 overflow-y-auto pt-20 sm:pt-0 bg-white dark:bg-[#0f172a] transition-opacity duration-150 ${isLoading && !dbError ? 'opacity-50 pointer-events-none' : ''}`}>
                     <Header {...headerConfig} />
                     <div>
                         <PageShell padding="none">

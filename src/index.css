@@ -95,7 +95,7 @@ html.dark select#user-select optgroup {
 }
 
 html.dark body {
-  background-color: #0d1117;
+  background-color: #0f172a;
   color: #e2e8f0;
 }
 
@@ -144,11 +144,17 @@ html.dark .hover\:bg-orange-100:hover { background-color: rgb(124 45 18 / 0.3); 
 html.dark .rounded-2xl:not([class*="dark:bg-"]):not([class*="bg-white"]) {
   background-color: rgb(17 24 39 / 0.6);
 }
+/* Remove mq-page card border/shadow in dark mode - no more two-tone */
+html.dark .mq-page {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
 
 html.dark {
-  --mq-border: #273246;
-  --mq-bg: #0b1220;
-  --mq-card-bg: #111827;
+  --mq-border: #1e293b;
+  --mq-bg: #0f172a;
+  --mq-card-bg: #0f172a;
   --mq-text: #e2e8f0;
   --mq-muted: #94a3b8;
   --mq-table-head: #0f172a;
