@@ -1394,6 +1394,32 @@ app.get('/service-worker.js', (req, res) => {
 app.use('/public', express.static(publicPath));
 app.use(express.static(staticPath));
 
+// SPA catch-all: serve index.html for client-side routes
+// Must come after static file serving and API routes
+app.get('*', (req, res) => {
+    // Skip API and asset requests
+    if (req.path.startsWith('/api') || req.path.startsWith('/ws') || req.path.includes('.')) {
+        return res.status(404).send('Not found');
+    }
+    const indexPath = path.join(staticPath, 'index.html');
+    fs.readFile(indexPath, 'utf8', (err, indexHtmlData) => {
+        if (err) {
+            return res.status(404).send('Not found');
+        }
+        if (!apiKey) {
+            return res.sendFile(indexPath);
+        }
+        let injectedHtml = indexHtmlData;
+        if (injectedHtml.includes('<head>')) {
+            injectedHtml = injectedHtml.replace(
+                '<head>',
+                `<head>${webSocketInterceptorScriptTag}${serviceWorkerRegistrationScript}`
+            );
+        }
+        res.send(injectedHtml);
+    });
+});
+
 // Start the HTTP server
 const server = app.listen(port, () => {
     console.log(`Server listening on port ${port}`);

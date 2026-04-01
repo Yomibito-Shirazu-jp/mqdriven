@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { PAGE_TO_PATH, PATH_TO_PAGE, DEFAULT_PAGE } from './src/app/routes';
 import { 
   Layers,
   Search,
@@ -452,6 +454,10 @@ const GlobalErrorBanner: React.FC<{ error: string; onRetry: () => void; onShowSe
 
 
 const App: React.FC = () => {
+    // --- React Router sync bridge ---
+    const navigate = useNavigate();
+    const location = useLocation();
+
     const isSupabaseConfigured = useMemo(() => hasSupabaseCredentials(), []);
     const isAuthBypassEnabled = useMemo(() => import.meta.env.VITE_BYPASS_SUPABASE_AUTH === '1', []);
     const shouldRequireAuth = isSupabaseConfigured && !isAuthBypassEnabled;
@@ -462,8 +468,10 @@ const App: React.FC = () => {
     const [authError, setAuthError] = useState<string | null>(null);
     // Update Modal State
     const [showUpdateModal, setShowUpdateModal] = useState(false);
-    // Global State
-    const [currentPage, setCurrentPage] = useState<Page>('sales_dashboard');
+    // Global State — initialise from URL when possible
+    const [currentPage, setCurrentPage] = useState<Page>(() => {
+        return PATH_TO_PAGE[location.pathname] ?? DEFAULT_PAGE;
+    });
     const [searchTerm, setSearchTerm] = useState('');
     const [currentUser, setCurrentUser] = useState<EmployeeUser | null>(null);
     const [user, setUser] = useState<any>(null); // TODO: Replace 'any' with proper user type
@@ -648,6 +656,15 @@ const App: React.FC = () => {
         return [...customerSuggestions, ...jobSuggestions];
     }, [currentPage, searchTerm, customers, jobs]);
 
+    // --- URL → state sync (browser back/forward) ---
+    useEffect(() => {
+        const pageFromUrl = PATH_TO_PAGE[location.pathname];
+        if (pageFromUrl && pageFromUrl !== currentPage) {
+            setCurrentPage(pageFromUrl);
+            setSearchTerm('');
+        }
+    }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Navigation and Modals
     const handleNavigate = (page: Page) => {
         if (page === 'accounting_business_plan' && currentUser?.role !== 'admin') {
@@ -656,6 +673,11 @@ const App: React.FC = () => {
         }
         setCurrentPage(page);
         setSearchTerm('');
+        // Sync state → URL
+        const path = PAGE_TO_PATH[page];
+        if (path && path !== location.pathname) {
+            navigate(path);
+        }
         // OCR状態はリセットしない - ページ離脱時も状態を維持
     };
 
