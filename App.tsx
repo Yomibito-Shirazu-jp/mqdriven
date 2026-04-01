@@ -226,6 +226,7 @@ import RegisterPage from './components/RegisterPage';
 import AuthCallbackPage from './components/AuthCallbackPage';
 import PromptManagementPage from './components/PromptManagementPage';
 import PageShell from './components/ui/PageShell';
+import PageErrorBoundary from './src/components/PageErrorBoundary';
 import DailyReportProgressPage from './components/DailyReportProgressPage';
 import AIEstimateCreation from './components/estimate/AIEstimateCreation';
 import FaxOcrIntakePage from './components/sales/FaxOcrIntakePage';
@@ -1928,7 +1929,15 @@ const App: React.FC = () => {
                     <Header {...headerConfig} />
                     <div>
                         <PageShell padding="none">
-                            {renderContent()}
+                            <PageErrorBoundary>
+                                <React.Suspense fallback={
+                                    <div className="flex items-center justify-center min-h-[200px]">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+                                    </div>
+                                }>
+                                    {renderContent()}
+                                </React.Suspense>
+                            </PageErrorBoundary>
                         </PageShell>
                     </div>
                 </div>
