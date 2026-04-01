@@ -60,11 +60,11 @@ const BusinessFormsHub: React.FC<BusinessFormsHubProps> = ({ onNavigate }) => {
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">業務プロセス管理</h2>
-          <p className="text-slate-500 font-bold mt-2">見積から納品まで、基幹DBと同期した一元管理ターミナル</p>
+          <h2 className="text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight">業務プロセス管理</h2>
+          <p className="text-slate-500 dark:text-slate-400 font-bold mt-2">見積から納品まで、基幹DBと同期した一元管理ターミナル</p>
         </div>
         <div className="flex gap-4">
-           <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg text-xs font-bold border border-emerald-100 flex items-center gap-2">
+           <div className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 px-4 py-2 rounded-lg text-xs font-bold border border-emerald-100 dark:border-emerald-900/40 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4" /> 基幹DB 正常稼働中
            </div>
         </div>
@@ -75,28 +75,28 @@ const BusinessFormsHub: React.FC<BusinessFormsHubProps> = ({ onNavigate }) => {
           <button
             key={form.id}
             onClick={() => onNavigate(form.id as Page)}
-            className={`bg-white p-8 rounded-2xl border-2 ${form.color} text-left transition-all hover:shadow-2xl group relative overflow-hidden`}
+            className={`bg-white dark:bg-slate-800 p-8 rounded-2xl border-2 ${form.color} dark:border-slate-700 text-left transition-all hover:shadow-2xl group relative overflow-hidden`}
           >
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
               {form.icon}
             </div>
-            <div className="mb-6 p-4 bg-slate-50 rounded-xl inline-block group-hover:bg-white group-hover:shadow-md transition-all">
+            <div className="mb-6 p-4 bg-slate-50 dark:bg-slate-700 rounded-xl inline-block group-hover:bg-white dark:group-hover:bg-slate-600 group-hover:shadow-md transition-all">
               {form.icon}
             </div>
-            <h3 className="text-xl font-black text-slate-900 mb-2">{form.title}</h3>
-            <p className="text-sm text-slate-500 font-bold leading-relaxed mb-6">
+            <h3 className="text-xl font-black text-slate-900 dark:text-slate-100 mb-2">{form.title}</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 font-bold leading-relaxed mb-6">
               {form.description}
             </p>
-            <div className="flex items-center justify-between mt-auto pt-6 border-t border-slate-100">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{form.status}</span>
-              <ArrowRight className="w-5 h-5 text-slate-300 group-hover:text-slate-900 group-hover:translate-x-1 transition-all" />
+            <div className="flex items-center justify-between mt-auto pt-6 border-t border-slate-100 dark:border-slate-700">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">{form.status}</span>
+              <ArrowRight className="w-5 h-5 text-slate-300 dark:text-slate-600 group-hover:text-slate-900 dark:group-hover:text-slate-100 group-hover:translate-x-1 transition-all" />
             </div>
           </button>
         ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 bg-slate-900 rounded-3xl p-10 text-white shadow-2xl relative overflow-hidden">
+        <div className="lg:col-span-2 bg-slate-900 dark:bg-slate-800 rounded-3xl p-10 text-white shadow-2xl relative overflow-hidden">
              <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/20 rounded-full blur-3xl -mr-32 -mt-32"></div>
              <div className="relative z-10 flex gap-10 items-start">
                 <div className="p-4 bg-blue-600 rounded-2xl shadow-lg">
@@ -119,8 +119,8 @@ const BusinessFormsHub: React.FC<BusinessFormsHubProps> = ({ onNavigate }) => {
              </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-10 border-2 border-slate-100 shadow-xl">
-            <h4 className="text-lg font-black text-slate-900 mb-6 flex items-center gap-3">
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-10 border-2 border-slate-100 dark:border-slate-700 shadow-xl">
+            <h4 className="text-lg font-black text-slate-900 dark:text-slate-100 mb-6 flex items-center gap-3">
                 <Clock className="w-5 h-5 text-blue-600" />
                 最近の変更履歴
             </h4>
@@ -133,7 +133,7 @@ const BusinessFormsHub: React.FC<BusinessFormsHubProps> = ({ onNavigate }) => {
                     <div key={i} className="flex gap-4 items-start">
                         <div className={`w-2 h-2 rounded-full mt-1.5 ${log.color} shadow-sm`}></div>
                         <div>
-                            <p className="text-sm font-bold text-slate-700">{log.text}</p>
+                            <p className="text-sm font-bold text-slate-700 dark:text-slate-300">{log.text}</p>
                             <p className="text-[10px] text-slate-400 font-bold mt-1">{log.time}</p>
                         </div>
                     </div>

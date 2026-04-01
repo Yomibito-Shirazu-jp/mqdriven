@@ -1871,7 +1871,7 @@ const App: React.FC = () => {
             <main className="flex-1 flex flex-col overflow-hidden relative min-h-0">
                 {dbError && <GlobalErrorBanner error={dbError} onRetry={loadAllData} onShowSetup={() => setIsSetupModalOpen(true)} />}
                 {/* Mobile header */}
-                <div className="sm:hidden fixed top-0 left-0 right-0 z-30 bg-white p-4 border-b border-slate-200 shadow-sm">
+                <div className="sm:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-slate-900 p-4 border-b border-slate-200 dark:border-slate-800 shadow-sm">
                     <div className="flex items-center justify-between">
                         <button
                             onClick={() => {
@@ -1883,11 +1883,11 @@ const App: React.FC = () => {
                                     sidebarElement.dispatchEvent(event);
                                 }
                             }}
-                            className="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors text-slate-600"
+                            className="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-400"
                         >
-                            <Menu className="w-5 h-5 text-slate-600" />
+                            <Menu className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                         </button>
-                        <h1 className="text-lg font-bold text-slate-800">文唱堂印刷 業務管理</h1>
+                        <h1 className="text-lg font-bold text-slate-800 dark:text-slate-100">文唱堂印刷 業務管理</h1>
                         <div className="w-8"></div>
                     </div>
                 </div>

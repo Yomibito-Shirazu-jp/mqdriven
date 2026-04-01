@@ -83,14 +83,14 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({ currentUser }
     color: string; 
     alert?: boolean;
   }) => (
-    <div className={`p-6 rounded-xl border ${alert ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}>
+    <div className={`p-6 rounded-xl border ${alert ? 'border-red-200 bg-red-50 dark:border-red-900/50 dark:bg-red-900/20' : 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800'}`}>
       <div className="flex items-center justify-between">
         <div>
-          <p className={`text-sm font-medium ${alert ? 'text-red-600' : 'text-slate-600'}`}>{title}</p>
-          <p className={`text-2xl font-bold mt-1 ${alert ? 'text-red-700' : 'text-slate-800'}`}>{value}</p>
+          <p className={`text-sm font-medium ${alert ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-400'}`}>{title}</p>
+          <p className={`text-2xl font-bold mt-1 ${alert ? 'text-red-700 dark:text-red-300' : 'text-slate-800 dark:text-slate-100'}`}>{value}</p>
         </div>
-        <div className={`p-3 rounded-lg ${alert ? 'bg-red-100' : `${color}100`}`}>
-          <Icon className={`w-6 h-6 ${alert ? 'text-red-600' : color}`} />
+        <div className={`p-3 rounded-lg ${alert ? 'bg-red-100 dark:bg-red-900/40' : `${color}100`}`}>
+          <Icon className={`w-6 h-6 ${alert ? 'text-red-600 dark:text-red-400' : color}`} />
         </div>
       </div>
     </div>
@@ -101,7 +101,7 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({ currentUser }
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-          <p className="text-slate-600">読み込み中...</p>
+          <p className="text-slate-600 dark:text-slate-400">読み込み中...</p>
         </div>
       </div>
     );
@@ -111,12 +111,12 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({ currentUser }
     <div className="space-y-6">
       {/* アラートセクション */}
       {metrics.pendingReview > 0 && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900/50 rounded-xl">
           <div className="flex items-center gap-3">
-            <AlertTriangle className="w-5 h-5 text-red-600" />
+            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
             <div>
-              <h3 className="font-semibold text-red-800">要対応</h3>
-              <p className="text-red-600 text-sm">
+              <h3 className="font-semibold text-red-800 dark:text-red-300">要対応</h3>
+              <p className="text-red-600 dark:text-red-400 text-sm">
                 承認済み申請が{metrics.pendingReview}件、案件予算分析待ちです
               </p>
             </div>
@@ -159,8 +159,8 @@ const AccountingDashboard: React.FC<AccountingDashboardProps> = ({ currentUser }
       </div>
 
       {/* クイックアクション */}
-      <div className="p-6 bg-slate-50 rounded-xl">
-        <h3 className="font-semibold text-slate-800 mb-4">クイックアクション</h3>
+      <div className="p-6 bg-slate-50 dark:bg-slate-800 rounded-xl">
+        <h3 className="font-semibold text-slate-800 dark:text-slate-100 mb-4">クイックアクション</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {metrics.pendingReview > 0 && (
             <button className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
