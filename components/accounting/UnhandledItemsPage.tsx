@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ArrowRight, ClipboardList, Loader } from 'lucide-react';
 import type { Lead, Page } from '../../types';
 import { LeadStatus } from '../../types';
-import ApprovedApplications from './ApprovedApplications';
+import ApprovedApplications from '../../src/components/accounting/ApprovedApplications';
 
 interface UnhandledItemsPageProps {
   leads: Lead[];

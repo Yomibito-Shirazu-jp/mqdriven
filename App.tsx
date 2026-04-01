@@ -183,7 +183,7 @@ import ProductionOrderForm from './components/forms/ProductionOrderForm';
 import DeliverySlipForm from './components/forms/DeliverySlipForm';
 import DetailedEstimateForm from './components/estimate/DetailedEstimateForm';
 import CustomerDashboard from './components/CustomerDashboard';
-import { ApprovedApplications } from './components/accounting/ApprovedApplications';
+import { ApprovedApplications } from './src/components/accounting/ApprovedApplications';
 import UnhandledItemsPage from './components/accounting/UnhandledItemsPage';
 import GeneralLedger from './components/accounting/GeneralLedger';
 import PayablesPage from './components/accounting/Payables';
