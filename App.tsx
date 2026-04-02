@@ -1873,7 +1873,7 @@ const App: React.FC = () => {
     };
 
     return (
-        <div className="h-screen overflow-hidden bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-sans flex mq-theme">
+        <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-sans flex mq-theme">
             <Sidebar
                 currentPage={currentPage}
                 onNavigate={handleNavigate}
@@ -1883,7 +1883,7 @@ const App: React.FC = () => {
                 approvalsCount={pendingApprovalCount}
                 accountingCounts={accountingCounts}
             />
-            <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-[#0b1220] relative min-h-0">
+            <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-900 relative min-h-0">
                 {dbError && <GlobalErrorBanner error={dbError} onRetry={loadAllData} onShowSetup={() => setIsSetupModalOpen(true)} />}
                 {/* Mobile header */}
                 <div className="sm:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-slate-900 p-4 border-b border-slate-200 dark:border-slate-800 shadow-sm">
@@ -1906,24 +1906,11 @@ const App: React.FC = () => {
                         <div className="w-8"></div>
                     </div>
                 </div>
-                <button
-                  onClick={() => handleNavigate('business_forms_hub')}
-                  className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-bold transition-all ${
-                    currentPage === 'business_forms_hub'
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <Briefcase className="w-5 h-5" />
-                  業務プロセス管理
-                </button>
-                <div className={`flex-1 overflow-y-auto pt-20 sm:pt-0 bg-white dark:bg-slate-900 transition-opacity duration-150 ${isLoading && !dbError ? 'opacity-50 pointer-events-none' : ''}`}>
+                <div className={`flex-1 overflow-y-auto pt-20 sm:pt-0 bg-slate-50 dark:bg-slate-900 transition-opacity duration-150 ${isLoading && !dbError ? 'opacity-50 pointer-events-none' : ''}`}>
                     <Header {...headerConfig} />
-                    <div>
-                        <PageShell padding="none">
-                            {renderContent()}
-                        </PageShell>
-                    </div>
+                    <PageShell padding="none">
+                        {renderContent()}
+                    </PageShell>
                 </div>
                 {isLoading && !dbError && (
                     <div className="absolute inset-0 flex items-center justify-center bg-slate-900/40 z-20">

@@ -67,7 +67,12 @@ const AccountingPage: React.FC<AccountingPageProps> = (props) => {
             );
 
         case 'purchasing_invoices': {
-            const handleSaveExpenses = (data: InvoiceData) => {
+            const handleSaveExpenses = async (data: InvoiceData) => {
+                const { determineInvoiceDirection, createExpenseInvoice } = await import('../services/dataService');
+
+                // 自社発行か他社からの受領かを判定
+                const direction = determineInvoiceDirection(data.vendorName, data.recipientName);
+
                 let expenseAmount: number;
                 let consumptionTaxAmount: number;
                 let totalCreditAmount = data.totalAmount ?? 0;
@@ -90,30 +95,67 @@ const AccountingPage: React.FC<AccountingPageProps> = (props) => {
                     totalCreditAmount = expenseAmount + consumptionTaxAmount;
                 }
 
-                onAddEntry({
-                    account: '買掛金',
-                    description: `仕入 ${data.vendorName} (${data.description})`,
-                    credit: totalCreditAmount,
-                    debit: 0,
-                });
-
-                onAddEntry({
-                    account: data.account || '仕入高',
-                    description: `仕入 ${data.vendorName}`,
-                    debit: expenseAmount,
-                    credit: 0,
-                });
-
-                if (consumptionTaxAmount > 0) {
+                if (direction === 'received') {
+                    // 他社からの受領 → 買掛金/仕入高
                     onAddEntry({
-                        account: '仮払消費税',
-                        description: `仮払消費税 ${data.vendorName}`,
-                        debit: consumptionTaxAmount,
+                        account: '買掛金',
+                        description: `仕入 ${data.vendorName} (${data.description})`,
+                        credit: totalCreditAmount,
+                        debit: 0,
+                    });
+                    onAddEntry({
+                        account: data.account || '仕入高',
+                        description: `仕入 ${data.vendorName}`,
+                        debit: expenseAmount,
                         credit: 0,
                     });
+                    if (consumptionTaxAmount > 0) {
+                        onAddEntry({
+                            account: '仮払消費税',
+                            description: `仮払消費税 ${data.vendorName}`,
+                            debit: consumptionTaxAmount,
+                            credit: 0,
+                        });
+                    }
+                } else {
+                    // 自社発行 → 売掛金/売上高
+                    onAddEntry({
+                        account: '売掛金',
+                        description: `売上 ${data.recipientName || data.vendorName} (${data.description})`,
+                        debit: totalCreditAmount,
+                        credit: 0,
+                    });
+                    onAddEntry({
+                        account: '売上高',
+                        description: `売上 ${data.recipientName || data.vendorName}`,
+                        debit: 0,
+                        credit: expenseAmount,
+                    });
+                    if (consumptionTaxAmount > 0) {
+                        onAddEntry({
+                            account: '仮受消費税',
+                            description: `仮受消費税 ${data.recipientName || data.vendorName}`,
+                            debit: 0,
+                            credit: consumptionTaxAmount,
+                        });
+                    }
                 }
 
-                addToast('買掛金と経費が計上されました。', 'success');
+                // expense_invoices テーブルにデータを保存
+                await createExpenseInvoice({
+                    supplierName: data.vendorName || '',
+                    registrationNumber: data.registrationNumber,
+                    invoiceDate: data.invoiceDate || new Date().toISOString().split('T')[0],
+                    dueDate: data.dueDate,
+                    totalGross: data.totalAmount ?? 0,
+                    totalNet: data.subtotalAmount ?? expenseAmount,
+                    taxAmount: consumptionTaxAmount,
+                    bankAccountInfo: data.bankAccount ? { ...data.bankAccount } : {},
+                    direction,
+                });
+
+                const directionLabel = direction === 'received' ? '買掛金と経費' : '売掛金と売上';
+                addToast(`${directionLabel}が計上されました。`, 'success');
             };
             return (
                 <InvoiceOCR
