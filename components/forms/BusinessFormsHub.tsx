@@ -60,11 +60,11 @@ const BusinessFormsHub: React.FC<BusinessFormsHubProps> = ({ onNavigate }) => {
     <div className="p-8 space-y-8 animate-in fade-in duration-500">
       <div className="flex justify-between items-end">
         <div>
-          <h2 className="text-3xl font-black text-slate-900 tracking-tight">業務プロセス管理</h2>
-          <p className="text-slate-500 font-bold mt-2">見積から納品まで、基幹DBと同期した一元管理ターミナル</p>
+          <h2 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">業務プロセス管理</h2>
+          <p className="text-slate-500 dark:text-slate-400 font-bold mt-2">見積から納品まで、基幹DBと同期した一元管理ターミナル</p>
         </div>
         <div className="flex gap-4">
-           <div className="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-lg text-xs font-bold border border-emerald-100 flex items-center gap-2">
+           <div className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-4 py-2 rounded-lg text-xs font-bold border border-emerald-100 dark:border-emerald-800 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4" /> 基幹DB 正常稼働中
            </div>
         </div>
@@ -75,7 +75,7 @@ const BusinessFormsHub: React.FC<BusinessFormsHubProps> = ({ onNavigate }) => {
           <button
             key={form.id}
             onClick={() => onNavigate(form.id as Page)}
-            className={`bg-white p-8 rounded-2xl border-2 ${form.color} text-left transition-all hover:shadow-2xl group relative overflow-hidden`}
+            className={`bg-white dark:bg-slate-800 p-8 rounded-2xl border-2 ${form.color} text-left transition-all hover:shadow-2xl group relative overflow-hidden`}
           >
             <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
               {form.icon}

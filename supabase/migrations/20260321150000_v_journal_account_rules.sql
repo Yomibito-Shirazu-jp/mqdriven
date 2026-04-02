@@ -20,7 +20,8 @@ SELECT
   acc_debit.name AS debit_account_name,
   acc_credit.code AS credit_account_code,
   acc_credit.name AS credit_account_name,
-  COUNT(*) AS usage_count
+  COUNT(*) AS usage_count,
+  MAX(a.updated_at) AS last_used_at
 FROM public.applications a
 JOIN public.application_codes ac ON ac.id = a.application_code_id
 JOIN accounting.journal_batches b ON b.source_application_id = a.id AND b.status = 'posted'

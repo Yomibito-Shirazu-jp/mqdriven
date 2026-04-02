@@ -201,19 +201,17 @@ const chunk = <T>(arr: T[], size: number): T[][] =>
 async function fetchJournalBatches(supabase: any, ids: string[]) {
   const valid = safeIds(ids);
   if (valid.length === 0) return [];
-  
+
   const parts = chunk(valid, 50);
-  const res = await Promise.all(parts.map(p =>
-    supabase
+  const data: any[] = [];
+  for (const p of parts) {
+    const r = await supabase
       .from('v_journal_batches')
       .select('id,source_application_id,status')
-      .in('source_application_id', p)
-  ));
-  
-  const data = res.flatMap(r => r.data ?? []);
-  const error = res.find(r => r.error)?.error;
-  
-  if (error) console.warn('partial error in journal batches:', error);
+      .in('source_application_id', p);
+    if (r.error) console.warn('partial error in journal batches:', r.error);
+    data.push(...(r.data ?? []));
+  }
   return data;
 }
 
@@ -2339,19 +2337,89 @@ export const deleteApprovalRoute = async (id: string): Promise<void> => {
 
 export const getApprovedApplications = async (codes?: string[]): Promise<ApplicationWithDetails[]> => {
     const supabase = getSupabase();
+
+    // ネスト参照 application_code.code への .in は PostgREST で不安定なため、
+    // application_codes から ID を解決して application_code_id で絞る（フォールバックも同条件で軽量化）
+    let resolvedCodeIds: string[] | null = null;
+    if (codes && codes.length > 0) {
+        const { data: codeRows, error: codeErr } = await supabase
+            .from('application_codes')
+            .select('id')
+            .in('code', codes);
+        ensureSupabaseSuccess(codeErr, 'Failed to resolve application codes for approved list');
+        resolvedCodeIds = (codeRows || []).map((r: { id: string }) => r.id).filter(Boolean);
+        if (resolvedCodeIds.length === 0) {
+            return [];
+        }
+    }
+
     const query = supabase
         .from('applications')
         .select(`*, applicant:applicant_id(*), application_code:application_code_id(*), approval_route:approval_route_id(*)`)
         .eq('status', 'approved')
         .order('approved_at', { ascending: false });
-    if (codes && codes.length) {
-        query.in('application_code.code', codes);
+    if (resolvedCodeIds) {
+        query.in('application_code_id', resolvedCodeIds);
     }
     const { data, error } = await query;
 
-    ensureSupabaseSuccess(error, 'Failed to fetch approved applications');
+    let appsData = data;
+    if (error) {
+        console.warn('Failed to fetch approved applications with joins, trying fallback:', error);
+        let fallbackQuery = supabase
+            .from('applications')
+            .select('*')
+            .eq('status', 'approved')
+            .order('approved_at', { ascending: false });
+        if (resolvedCodeIds) {
+            fallbackQuery = fallbackQuery.in('application_code_id', resolvedCodeIds);
+        }
+        const { data: fallbackData, error: fallbackError } = await fallbackQuery;
 
-    const apps = data || [];
+        ensureSupabaseSuccess(fallbackError, 'Failed to fetch approved applications');
+        
+        let appsFallback = fallbackData || [];
+
+        const codeIds = [...new Set(appsFallback.map(a => a.application_code_id).filter(Boolean))];
+        const routeIds = [...new Set(appsFallback.map(a => a.approval_route_id).filter(Boolean))];
+        const userIds = [...new Set(appsFallback.map(a => a.applicant_id).filter(Boolean))];
+        
+        const codeMap = new Map<string, any>();
+        const routeMap = new Map<string, any>();
+        const userMap = new Map<string, any>();
+
+        try {
+            if (codeIds.length > 0) {
+                const { data: codesData } = await supabase.from('application_codes').select('*').in('id', codeIds);
+                (codesData || []).forEach(c => codeMap.set(c.id, c));
+            }
+            if (routeIds.length > 0) {
+                const { data: routesData } = await supabase.from('approval_routes').select('*').in('id', routeIds);
+                (routesData || []).forEach(r => routeMap.set(r.id, r));
+            }
+            if (userIds.length > 0) {
+                const usersData = await chunkedIn(supabase, 'users', 'id, name, email', 'id', userIds);
+                (usersData || []).forEach(u => userMap.set(u.id, u));
+            }
+        } catch(e) {
+            console.warn('Manual relation fetch failed in fallback: ', e);
+        }
+
+        appsFallback = appsFallback.map(app => ({
+            ...app,
+            applicant: userMap.get(app.applicant_id) || null,
+            application_code: codeMap.get(app.application_code_id) || null,
+            approval_route: routeMap.get(app.approval_route_id) || null
+        }));
+
+        if (codes && codes.length) {
+            appsFallback = appsFallback.filter(app => app.application_code && codes.includes(app.application_code.code));
+        }
+
+        appsData = appsFallback;
+    }
+
+    const apps = appsData || [];
     const mapAppsWithoutJournal = () =>
         apps.map(app => ({
             ...dbApplicationToApplication(app),
@@ -2386,7 +2454,12 @@ export const getApprovedApplications = async (codes?: string[]): Promise<Applica
     }
 
     // accountingスキーマのjournal_entriesテーブルを使用（チャンク分割）
-    const journalEntries = await chunkedIn(supabase, 'journal_entries', 'id, batch_id, entry_date, description, created_at', 'batch_id', batchIds);
+    let journalEntries: any[] = [];
+    try {
+        journalEntries = await chunkedIn(supabase, 'journal_entries', 'id, batch_id, entry_date, description, created_at', 'batch_id', batchIds);
+    } catch (e) {
+        console.warn('Failed to fetch journal entries:', e);
+    }
 
     const entryByAppId = new Map<string, JournalEntry>();
     (journalEntries || []).forEach(entry => {
@@ -2418,16 +2491,25 @@ export const getApprovedApplications = async (codes?: string[]): Promise<Applica
     const linesByEntryId = new Map<string, any[]>();
     if (entryIds.length > 0) {
         // publicスキーマのVIEW経由でaccounting.journal_linesにアクセス（チャンク分割）
-        const journalLines = await chunkedIn(supabase, 'journal_lines', 'id, journal_entry_id, account_id, debit, credit, description', 'journal_entry_id', entryIds);
+        let journalLines: any[] = [];
+        try {
+            journalLines = await chunkedIn(supabase, 'journal_lines', 'id, journal_entry_id, account_id, debit, credit, description', 'journal_entry_id', entryIds);
+        } catch (e) {
+            console.warn('Failed to fetch journal_lines:', e);
+        }
 
         // account_idからaccount情報を別途取得（チャンク分割）
         const accountIds = [...new Set((journalLines || []).map((l: any) => l.account_id).filter(Boolean))];
         const accountMap = new Map<string, { code: string; name: string }>();
         if (accountIds.length > 0) {
-            const accounts = await chunkedIn(supabase, 'chart_of_accounts', 'id, code, name', 'id', accountIds);
-            (accounts || []).forEach((acc: any) => {
-                accountMap.set(acc.id, { code: acc.code, name: acc.name });
-            });
+            try {
+                const accounts = await chunkedIn(supabase, 'chart_of_accounts', 'id, code, name', 'id', accountIds);
+                (accounts || []).forEach((acc: any) => {
+                    accountMap.set(acc.id, { code: acc.code, name: acc.name });
+                });
+            } catch (e) {
+                console.warn('Failed to fetch chart_of_accounts:', e);
+            }
         }
 
         (journalLines || []).forEach(line => {
@@ -5537,15 +5619,37 @@ export const getJournalAccountRules = async (
         return null; // DBマイグレーション未適用の場合は無視
     }
 
-    const normalizedSupplier = (supplierName || '').trim().toLowerCase();
+    // 優先度1: application_code + supplierName (正規化) 一致
+    // 過去の修正を優先するため、usage_count ではなく last_used_at を優先（次点で usage_count）
+    const normalizeSupplier = (name: string) => {
+        return (name || '')
+            .trim()
+            .toLowerCase()
+            .replace(/株式会社|（株）|\(株\)|合同会社|有限会社|（有）|\(有\)|一般社団法人|財団法人/g, '')
+            .replace(/\s+/g, '')
+            .replace(/日本郵政|日本郵便株式会社|郵便局/g, '日本郵便');
+    };
+
+    const normalizedSupplier = normalizeSupplier(supplierName || '');
     
-    // 優先度1: application_code + supplierName 完全一致
     let bestExactRule: any = null;
     if (normalizedSupplier) {
         for (const rule of rules) {
-            const ruleSupplier = (rule.supplier_name || '').trim().toLowerCase();
-            if (ruleSupplier === normalizedSupplier) {
-                if (!bestExactRule || rule.usage_count > bestExactRule.usage_count) {
+            const ruleSupplier = normalizeSupplier(rule.supplier_name || '');
+            // 部分一致または完全一致で優先度を決める（長ければ部分一致でもOKとする）
+            const isMatch = ruleSupplier === normalizedSupplier || 
+                            (ruleSupplier.length >= 2 && normalizedSupplier.includes(ruleSupplier)) ||
+                            (normalizedSupplier.length >= 2 && ruleSupplier.includes(normalizedSupplier));
+                            
+            if (isMatch) {
+                // last_used_at を最優先、無い場合は usage_count で比較
+                if (!bestExactRule) {
+                    bestExactRule = rule;
+                } else if (rule.last_used_at && bestExactRule.last_used_at) {
+                    if (new Date(rule.last_used_at) > new Date(bestExactRule.last_used_at)) {
+                        bestExactRule = rule;
+                    }
+                } else if (rule.usage_count > bestExactRule.usage_count) {
                     bestExactRule = rule;
                 }
             }
@@ -5568,8 +5672,17 @@ export const getJournalAccountRules = async (
     // 優先度2: application_code のみ一致（一番使われている仕訳ペア）
     let bestFallbackRule: any = null;
     for (const rule of rules) {
-        if (!bestFallbackRule || rule.usage_count > bestFallbackRule.usage_count) {
+        if (!bestFallbackRule) {
             bestFallbackRule = rule;
+        } else {
+            // usage_count が2以上ならそちらを優先。同じ場合は last_used_at を考慮
+            if (rule.usage_count > bestFallbackRule.usage_count) {
+                bestFallbackRule = rule;
+            } else if (rule.usage_count === bestFallbackRule.usage_count) {
+                if (rule.last_used_at && bestFallbackRule.last_used_at && new Date(rule.last_used_at) > new Date(bestFallbackRule.last_used_at)) {
+                    bestFallbackRule = rule;
+                }
+            }
         }
     }
 

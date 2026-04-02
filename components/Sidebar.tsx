@@ -258,32 +258,32 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
 
       <aside
         data-sidebar-mobile-toggle
-        className={`${sidebarWidth} ${sidebarTransition} flex-shrink-0 bg-white text-slate-600 border-r border-slate-200 flex flex-col p-3 sm:p-4 h-screen sm:h-screen min-h-0 fixed sm:relative z-50 sm:z-40 ${shouldShowMobile ? 'translate-x-0' : '-translate-x-full'} sm:translate-x-0`}
+        className={`${sidebarWidth} ${sidebarTransition} flex-shrink-0 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-r border-slate-200 dark:border-slate-800 flex flex-col p-3 sm:p-4 h-screen sm:h-screen min-h-0 fixed sm:relative z-50 sm:z-40 ${shouldShowMobile ? 'translate-x-0' : '-translate-x-full'} sm:translate-x-0`}
       >
         {/* Mobile header */}
-        <div className="sm:hidden flex items-center justify-between px-3 py-4 border-b border-slate-200">
-          <h1 className="text-lg font-bold text-slate-800">文唱堂印刷 業務管理</h1>
+        <div className="sm:hidden flex items-center justify-between px-3 py-4 border-b border-slate-200 dark:border-slate-800">
+          <h1 className="text-lg font-bold text-slate-800 dark:text-slate-200">文唱堂印刷 業務管理</h1>
           <button
             type="button"
             onClick={() => {
               setIsMobileOpen(false);
             }}
-            className="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors"
+            className="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors"
             aria-label="閉じる"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className={`px-3 py-4 border-b border-slate-200 overflow-hidden ${isCollapsed ? 'text-center' : ''} hidden sm:block`}>
+        <div className={`px-3 py-4 border-b border-slate-200 dark:border-slate-800 overflow-hidden ${isCollapsed ? 'text-center' : ''} hidden sm:block`}>
           <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'}`}>
             {/* Replace logo with a simple text matching FXGT branding style */}
-            <div className={`text-2xl font-black tracking-tighter text-teal-700 whitespace-nowrap ${isCollapsed ? 'hidden' : 'block'}`}>MQ ERP</div>
+            <div className={`text-2xl font-black tracking-tighter text-teal-700 dark:text-teal-400 whitespace-nowrap ${isCollapsed ? 'hidden' : 'block'}`}>MQ ERP</div>
             {!isCollapsed && (
               <button
                 type="button"
                 onClick={toggleSidebar}
-                className="ml-auto h-8 w-8 flex items-center justify-center rounded-lg bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+                className="ml-auto h-8 w-8 flex items-center justify-center rounded-lg bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                 aria-label="サイドバーを折りたたむ"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -291,21 +291,21 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
             )}
           </div>
         </div>
-        <div className={`mt-2 flex flex-wrap gap-1 text-[10px] text-slate-500 ${isCollapsed ? 'justify-center' : ''}`}>
+        <div className={`mt-2 flex flex-wrap gap-1 text-[10px] text-slate-500 dark:text-slate-400 ${isCollapsed ? 'justify-center' : ''}`}>
           {isCollapsed && (
             <button
               type="button"
               onClick={toggleSidebar}
-              className="block w-6 h-6 text-center leading-6 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors"
+              className="block w-6 h-6 text-center leading-6 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               aria-label="サイドバーを展開"
             >
               <ChevronRight className="w-3 h-3 text-slate-500 mx-auto" />
             </button>
           )}
-          <a href="https://erp.b-p.co.jp" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="業務">業</a>
-          <a href="https://mq.b-p.co.jp" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="MQ">MQ</a>
-          <a href="https://dtp.b-p.co.jp" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="DTP">D</a>
-          <a href="https://co2.b-p.co.jp/" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="エコ">E</a>
+          <a href="https://erp.b-p.co.jp" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="業務">業</a>
+          <a href="https://mq.b-p.co.jp" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="MQ">MQ</a>
+          <a href="https://dtp.b-p.co.jp" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="DTP">D</a>
+          <a href="https://co2.b-p.co.jp/" target="_blank" rel="noopener noreferrer" className={`px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors ${isCollapsed ? 'block w-6 h-6 text-center leading-6' : ''}`} title="エコ">E</a>
         </div>
         <nav className={`flex-1 mt-2 sm:mt-6 space-y-2 overflow-y-auto min-h-0 ${isCollapsed ? 'px-1' : 'px-2'}`}>
           <ul>
@@ -319,7 +319,7 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
                       <button
                         type="button"
                         onClick={() => toggleCategory(category.id)}
-                        className="flex items-center w-full hover:text-slate-600 transition-colors"
+                        className="flex items-center w-full hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                         aria-label={isCategoryExpanded ? `${category.name}カテゴリを折りたたむ` : `${category.name}カテゴリを展開する`}
                       >
                         {category.icon && <category.icon className="w-4 h-4 mr-2" />}
@@ -353,10 +353,10 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
                               }
                             }
                           }}
-                          className={`flex items-center p-2.5 sm:px-3 sm:py-2.5 rounded-md transition-colors duration-200 ${isActive ? 'bg-teal-50 text-teal-700 font-bold border-l-4 border-teal-700' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 font-medium'
+                          className={`flex items-center p-2.5 sm:px-3 sm:py-2.5 rounded-md transition-colors duration-200 ${isActive ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 font-bold border-l-4 border-teal-700 dark:border-teal-500' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
                             } ${isCollapsed ? 'justify-center border-l-0' : 'gap-3'} text-[13px] min-h-[40px] mb-0.5 -ml-2 pl-4 rounded-none border-t border-b border-transparent`}
                         >
-                          {ItemIcon && <ItemIcon className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? 'text-teal-700' : 'text-slate-400'}`} />}
+                          {ItemIcon && <ItemIcon className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? 'text-teal-700 dark:text-teal-400' : 'text-slate-400 dark:text-slate-500'}`} />}
                           <span className={`${shouldShowMobile ? 'block' : 'hidden sm:block'} ${isCollapsed ? 'sm:hidden' : ''}`}>{item.name}</span>
                           {item.children && !isCollapsed && (
                             <button
@@ -366,10 +366,10 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
                                 e.stopPropagation();
                                 setExpandedItems(prev => ({ ...prev, [item.page]: !(prev[item.page] ?? false) }));
                               }}
-                              className="ml-auto p-1 rounded hover:bg-slate-100"
+                              className="ml-auto p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
                               aria-label={isExpanded ? '折りたたむ' : '展開する'}
                             >
-                              <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                              <ChevronDown className={`w-4 h-4 text-slate-400 dark:text-slate-500 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
                             </button>
                           )}
                           {item.badge !== undefined && item.badge > 0 && !item.children && (
@@ -401,7 +401,7 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
                                         setIsMobileOpen(false);
                                       }
                                     }}
-                                    className={`flex items-center rounded-md px-3 py-2 text-[12.5px] transition-colors duration-200 ${isChildPageActive ? 'text-primary-400 font-semibold' : 'text-slate-500 hover:text-slate-300 hover:bg-white/5'
+                                    className={`flex items-center rounded-md px-3 py-2 text-[12.5px] transition-colors duration-200 ${isChildPageActive ? 'text-primary-400 dark:text-teal-400 font-semibold' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-white/5'
                                       } ml-8 my-0.5`}
                                   >
                                     <span className={`font-medium ${shouldShowMobile ? 'block' : 'hidden sm:block'}`}>{child.name}</span>
@@ -419,18 +419,18 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
             })}
           </ul>
         </nav>
-        <div className="mt-auto pt-4 border-t border-slate-200 space-y-4">
+        <div className="mt-auto pt-4 border-t border-slate-200 dark:border-slate-800 space-y-4">
           {supabaseUserEmail && (
-            <div className="px-3 py-2 rounded-lg bg-slate-50 border border-slate-100">
-              <p className="text-[11px] text-slate-500 mb-1">ログイン中のユーザー</p>
-              <p className="text-[13px] font-semibold text-slate-700 break-all">{supabaseUserEmail}</p>
+            <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">ログイン中のユーザー</p>
+              <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300 break-all">{supabaseUserEmail}</p>
             </div>
           )}
           {onSignOut && (
             <button
               type="button"
               onClick={onSignOut}
-              className="w-full px-3 py-2 text-[13px] font-semibold text-center text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:text-slate-900 rounded-md transition-colors"
+              className="w-full px-3 py-2 text-[13px] font-semibold text-center text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200 rounded-md transition-colors"
             >
               ログアウト
             </button>

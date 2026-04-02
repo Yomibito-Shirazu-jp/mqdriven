@@ -235,6 +235,7 @@ import PaymentManagement from './components/accounting/PaymentManagement';
 import LaborCostManagement from './components/accounting/LaborCostManagement';
 import TrialBalancePage from './components/accounting/TrialBalancePage';
 import BugReportList from './components/admin/BugReportList';
+import InvoiceOCR from './components/InvoiceOCR';
 
 import * as dataService from './services/dataService';
 import * as geminiService from './services/geminiService';
@@ -506,13 +507,7 @@ const App: React.FC = () => {
     // UI State
     const [isLoading, setIsLoading] = useState(true);
     const [dbError, setDbError] = useState<string | null>(null);
-    const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-        if (typeof window === 'undefined') return false;
-        const storedTheme = window.localStorage.getItem('mq_theme');
-        if (storedTheme === 'dark') return true;
-        if (storedTheme === 'light') return false;
-        return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    });
+    const [isDarkMode, setIsDarkMode] = useState<boolean>(false); // 緊急対応：ダークモード一時停止につき強制false
     const [toastsEnabled, setToastsEnabled] = useState<boolean>(() => {
         if (typeof window === 'undefined') return true;
         const stored = window.localStorage.getItem('toasts_enabled');
@@ -561,9 +556,10 @@ const App: React.FC = () => {
     useEffect(() => {
         if (typeof document === 'undefined' || typeof window === 'undefined') return;
         const root = document.documentElement;
-        root.classList.toggle('dark', isDarkMode);
-        root.style.colorScheme = isDarkMode ? 'dark' : 'light';
-        window.localStorage.setItem('mq_theme', isDarkMode ? 'dark' : 'light');
+        // 緊急対応: ダークモードが各画面で崩れているため強制オフ
+        root.classList.remove('dark');
+        root.style.colorScheme = 'light';
+        window.localStorage.setItem('mq_theme', 'light');
     }, [isDarkMode]);
 
     // Show update modal on first visit
@@ -1541,6 +1537,25 @@ const App: React.FC = () => {
                 return <ManufacturingCostManagement jobs={jobs || []} />;
             case 'purchasing_orders':
                 return <PurchasingManagementPage purchaseOrders={purchaseOrders || []} jobs={jobs || []} />;
+            case 'purchasing_invoices':
+                return (
+                    <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+                        <div className="mb-6">
+                            <h1 className="text-2xl font-bold text-slate-800 dark:text-white">請求書インポート (OCR)</h1>
+                            <p className="mt-1 flex items-center gap-2 text-sm text-slate-500">
+                                写真やPDF、CSVから請求書の内容を読み取り、仕入/経費データの入力を自動化します。
+                            </p>
+                        </div>
+                        <InvoiceOCR
+                            onSaveExpenses={(data) => {
+                                addToast(`「${data.vendorName || data.documentType}」のデータを取得しました。`, 'success');
+                            }}
+                            addToast={addToast}
+                            requestConfirmation={requestConfirmation}
+                            isAIOff={isAIOff}
+                        />
+                    </div>
+                );
             case 'simple_estimates':
                 return <AIEstimateCreation />;
             case 'new_ai_estimate':
@@ -1868,10 +1883,10 @@ const App: React.FC = () => {
                 approvalsCount={pendingApprovalCount}
                 accountingCounts={accountingCounts}
             />
-            <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 relative min-h-0">
+            <main className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-[#0b1220] relative min-h-0">
                 {dbError && <GlobalErrorBanner error={dbError} onRetry={loadAllData} onShowSetup={() => setIsSetupModalOpen(true)} />}
                 {/* Mobile header */}
-                <div className="sm:hidden fixed top-0 left-0 right-0 z-30 bg-white p-4 border-b border-slate-200 shadow-sm">
+                <div className="sm:hidden fixed top-0 left-0 right-0 z-30 bg-white dark:bg-slate-900 p-4 border-b border-slate-200 dark:border-slate-800 shadow-sm">
                     <div className="flex items-center justify-between">
                         <button
                             onClick={() => {
@@ -1883,11 +1898,11 @@ const App: React.FC = () => {
                                     sidebarElement.dispatchEvent(event);
                                 }
                             }}
-                            className="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors text-slate-600"
+                            className="h-8 w-8 flex items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300"
                         >
-                            <Menu className="w-5 h-5 text-slate-600" />
+                            <Menu className="w-5 h-5" />
                         </button>
-                        <h1 className="text-lg font-bold text-slate-800">文唱堂印刷 業務管理</h1>
+                        <h1 className="text-lg font-bold text-slate-800 dark:text-slate-200">文唱堂印刷 業務管理</h1>
                         <div className="w-8"></div>
                     </div>
                 </div>
@@ -1896,7 +1911,7 @@ const App: React.FC = () => {
                   className={`flex items-center gap-3 w-full px-4 py-3 rounded-lg text-sm font-bold transition-all ${
                     currentPage === 'business_forms_hub'
                       ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
                   <Briefcase className="w-5 h-5" />
