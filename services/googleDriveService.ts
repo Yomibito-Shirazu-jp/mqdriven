@@ -223,11 +223,14 @@ class GoogleDriveService {
   async searchExpenseFiles(): Promise<GoogleDriveSearchResult> {
     // Search for common expense-related file names and types
     const searchQueries = [
+      '請求書',
+      '領収書',
+      'invoice',
       '交通費',
       '精算',
       '経費',
       '出張',
-      '領収書',
+      '納品書',
       'expense'
     ];
 
@@ -248,7 +251,7 @@ class GoogleDriveService {
     );
 
     return {
-      files: uniqueFiles
+      files: this.filterInvoiceFiles(uniqueFiles)
     };
   }
 
@@ -264,9 +267,21 @@ class GoogleDriveService {
            !!file.name.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/i);
   }
 
+  isPdfFile(file: GoogleDriveFile): boolean {
+    return file.mimeType === 'application/pdf' ||
+           file.name.toLowerCase().endsWith('.pdf');
+  }
+
   filterExpenseFiles(files: GoogleDriveFile[]): GoogleDriveFile[] {
     return files.filter(file =>
       this.isExcelFile(file) || this.isImageFile(file)
+    );
+  }
+
+  /** 請求書OCR用：PDF・画像・Excelファイルを対象とする */
+  filterInvoiceFiles(files: GoogleDriveFile[]): GoogleDriveFile[] {
+    return files.filter(file =>
+      this.isPdfFile(file) || this.isImageFile(file) || this.isExcelFile(file)
     );
   }
 }

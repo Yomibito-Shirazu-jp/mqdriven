@@ -147,7 +147,7 @@ html.dark .rounded-2xl:not([class*="dark:bg-"]):not([class*="bg-white"]) {
 
 html.dark {
   --mq-border: #273246;
-  --mq-bg: #0b1220;
+  --mq-bg: #0f172a;
   --mq-card-bg: #111827;
   --mq-text: #e2e8f0;
   --mq-muted: #94a3b8;
