@@ -61,6 +61,48 @@ const calculateDayDiff = (start?: string, end?: string): number | null => {
     return Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 };
 
+const toNumericAmount = (value: any): number | null => {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+        const normalized = value.replace(/,/g, '').trim();
+        if (!normalized) return null;
+        const parsed = Number(normalized);
+        if (!Number.isNaN(parsed) && Number.isFinite(parsed)) return parsed;
+    }
+    return null;
+};
+
+const sumNumericArrayAmounts = (values: any[]): number | null => {
+    if (!Array.isArray(values)) return null;
+    const total = values.reduce((sum, value) => {
+        const amount = toNumericAmount(value?.amount ?? value);
+        return sum + (amount || 0);
+    }, 0);
+    return total > 0 ? total : null;
+};
+
+const deriveApplicationAmount = (rawData?: any): number | null => {
+    if (!rawData || typeof rawData !== 'object') return null;
+    const data = rawData as Record<string, any>;
+    const invoice = data.invoice || {};
+
+    const amountCandidates = [
+        toNumericAmount(data.amount),
+        toNumericAmount(data.totalAmount),
+        toNumericAmount(data.requestedAmount),
+        toNumericAmount(data.estimatedAmount),
+        toNumericAmount(invoice.totalGross),
+        toNumericAmount(invoice.totalNet),
+        toNumericAmount(invoice.totalAmount),
+        toNumericAmount(invoice.total),
+        sumNumericArrayAmounts(data.details),
+        sumNumericArrayAmounts(invoice.lines),
+    ].filter((value): value is number => value !== null);
+
+    return amountCandidates.length > 0 ? amountCandidates[0] : null;
+};
+
 const resolveCustomerCandidate = (line: any): string => {
     if (!line || typeof line !== 'object') return '';
     const candidates = [
@@ -119,7 +161,7 @@ const buildFormSummary = (code?: string, rawData?: any): FormSummary => {
     switch (normalizedCode) {
         case 'EXP': {
             const invoice = data.invoice || {};
-            const total = invoice.totalGross ?? invoice.totalNet ?? data.totalAmount ?? data.amount;
+            const total = deriveApplicationAmount(data);
             pushHighlight('申請金額', total, { format: 'currency' });
             const payee = invoice.supplierName ?? data.supplierName ?? data.customerName;
             pushHighlight('支払先', payee);
@@ -347,7 +389,7 @@ const buildFormSummary = (code?: string, rawData?: any): FormSummary => {
             break;
     }
 
-    const fallbackAmount = data.invoice?.totalGross ?? data.invoice?.totalNet ?? data.totalAmount ?? data.amount;
+    const fallbackAmount = deriveApplicationAmount(data);
     const fallbackPayee = data.invoice?.supplierName ?? data.supplierName ?? data.customerName ?? data.payee;
 
     const hasAmountHighlight = summary.highlights.some(item => item.label.includes('金額'));
@@ -469,7 +511,8 @@ const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
 
     const { formData, applicationCode, approvalRoute } = application;
     const code = applicationCode?.code;
-    const amount = formData.amount ? `¥${Number(formData.amount).toLocaleString()}` : (formData.totalAmount ? `¥${Number(formData.totalAmount).toLocaleString()}` : null);
+    const amountValue = deriveApplicationAmount(formData);
+    const amount = amountValue !== null ? `¥${Math.round(amountValue).toLocaleString('ja-JP')}` : null;
     const formSummary = React.useMemo(() => buildFormSummary(code, formData), [code, formData]);
     const hasSummarySections =
         formSummary.highlights.length > 0 || formSummary.listSections.length > 0 || formSummary.tableSections.length > 0;
@@ -642,12 +685,9 @@ const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
         { label: '承認ルート構成', value: approvalRoute?.routeData || '未設定' },
     ];
 
-    const shouldSkipFormField = (key: string) => key === 'mqAccounting' || key === 'meta' || key.startsWith('_');
-
     const formDataRows = [
         ...(amount ? [{ label: '合計金額', value: amount }] : []),
         ...Object.entries(formData || {})
-            .filter(([key]) => !shouldSkipFormField(key))
             .map(([key, value]) => ({ label: key, value })),
     ];
 
@@ -683,8 +723,6 @@ const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
     ];
 
     const visibleFormRows = formDataRows.filter(row => isFilled(row.value));
-    const compactFormRows = visibleFormRows.filter(row => typeof row.value !== 'object').slice(0, 12);
-    const extraFormRowCount = Math.max(0, visibleFormRows.length - compactFormRows.length);
 
     const renderInfoSection = (title: string, rows: { label: string; value: unknown }[], footer?: React.ReactNode) => {
         const visibleRows = rows.filter(row => isFilled(row.value));
@@ -890,12 +928,7 @@ const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
 
                                 {renderInfoSection(
                                     'フォーム入力',
-                                    compactFormRows,
-                                    extraFormRowCount > 0 ? (
-                                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                                            他 {extraFormRowCount} 件は左カラムに表示しています。
-                                        </p>
-                                    ) : null,
+                                    visibleFormRows,
                                 )}
                                 
                                 {showRejectionReason && (
