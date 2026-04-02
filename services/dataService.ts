@@ -6119,6 +6119,83 @@ export const deleteMachine = async (id: string): Promise<void> => {
         .from('machines')
         .delete()
         .eq('id', id);
-        
+
     ensureSupabaseSuccess(error, 'Failed to delete machine');
+};
+
+// ============================================================
+// 請求書インポート – expense_invoices テーブルへの保存
+// ============================================================
+
+/** 自社発行か他社からの受領かを判定する */
+const OUR_COMPANY_KEYWORDS = ['文唱堂', 'ぶんしょうどう', 'bunshodo'];
+
+export type InvoiceDirection = 'received' | 'self_issued';
+
+export const determineInvoiceDirection = (
+    vendorName?: string,
+    recipientName?: string,
+): InvoiceDirection => {
+    const normalize = (s: string) => (s || '').toLowerCase().replace(/\s+|株式会社|（株）|\(株\)|有限会社|合同会社/g, '');
+    const normalizedVendor = normalize(vendorName || '');
+    const normalizedRecipient = normalize(recipientName || '');
+
+    // vendorName（請求元）が自社名を含む → 自社発行
+    const vendorIsUs = OUR_COMPANY_KEYWORDS.some(kw => normalizedVendor.includes(kw));
+    // recipientName（請求先）が自社名を含む → 他社からの受領
+    const recipientIsUs = OUR_COMPANY_KEYWORDS.some(kw => normalizedRecipient.includes(kw));
+
+    if (vendorIsUs && !recipientIsUs) return 'self_issued';
+    if (recipientIsUs && !vendorIsUs) return 'received';
+    // どちらも判定できない場合はデフォルトで受領扱い
+    return 'received';
+};
+
+export interface CreateExpenseInvoiceParams {
+    supplierName: string;
+    registrationNumber?: string;
+    invoiceDate: string;
+    dueDate?: string;
+    totalGross: number;
+    totalNet: number;
+    taxAmount: number;
+    bankAccountInfo?: Record<string, any>;
+    direction: InvoiceDirection;
+    submittedBy?: string;
+}
+
+export const createExpenseInvoice = async (params: CreateExpenseInvoiceParams): Promise<string | null> => {
+    const supabase = getSupabase();
+    try {
+        const { data, error } = await supabase
+            .from('expense_invoices')
+            .insert({
+                supplier_name: params.supplierName,
+                registration_number: params.registrationNumber || null,
+                invoice_date: params.invoiceDate || new Date().toISOString().split('T')[0],
+                due_date: params.dueDate || null,
+                total_gross: params.totalGross,
+                total_net: params.totalNet,
+                tax_amount: params.taxAmount,
+                bank_account_info: params.bankAccountInfo || {},
+                status: 'Pending',
+                submitted_by: params.submittedBy || null,
+            })
+            .select('id')
+            .single();
+
+        if (error) {
+            // テーブルが存在しない場合はログだけ出して null を返す（致命的ではない）
+            if (error.code === '42P01') {
+                console.warn('[createExpenseInvoice] expense_invoices table not found. Run the migration first.');
+                return null;
+            }
+            console.error('[createExpenseInvoice] Failed:', error.message);
+            return null;
+        }
+        return data?.id ?? null;
+    } catch (err) {
+        console.error('[createExpenseInvoice] Unexpected error:', err);
+        return null;
+    }
 };
