@@ -864,11 +864,14 @@ const ExpenseReimbursementForm: React.FC<ExpenseReimbursementFormProps> = (props
             }
             : {};
 
+        const totalAmount = pinnedTotalGross !== null ? pinnedTotalGross : Math.round(computedTotals.gross);
         const baseFormData = {
             departmentId,
             approvalRouteId,
             notes,
             isInternalExpense,
+            totalAmount,
+            amount: totalAmount,
             invoice: {
                 ...invoice,
                 totalGross: pinnedTotalGross !== null ? pinnedTotalGross : invoice.totalGross,
