@@ -113,13 +113,34 @@ const InboxItemCard: React.FC<{
         <div className={`bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md border ${item.status === 'approved' ? 'border-green-300 dark:border-green-700' : 'border-slate-200 dark:border-slate-700'}`}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <div className="w-full h-auto max-h-96 border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden">
+                    <div className="w-full h-auto max-h-96 border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-slate-100 dark:bg-slate-700">
                         {item.mimeType === 'application/pdf' ? (
-                            <iframe src={item.fileUrl} className="w-full h-96" title={item.fileName}></iframe>
-                        ) : (
+                            item.fileUrl ? (
+                                <iframe src={item.fileUrl} className="w-full h-96" title={item.fileName}></iframe>
+                            ) : (
+                                <div className="w-full h-48 flex items-center justify-center text-slate-500 dark:text-slate-400 text-base">PDFプレビューを読み込めません</div>
+                            )
+                        ) : item.fileUrl ? (
                             <a href={item.fileUrl} target="_blank" rel="noopener noreferrer">
-                                <img src={item.fileUrl} alt={item.fileName} className="w-full h-auto object-contain" />
+                                <img
+                                    src={item.fileUrl}
+                                    alt={item.fileName}
+                                    className="w-full h-auto object-contain"
+                                    onError={(e) => {
+                                        const target = e.currentTarget;
+                                        target.style.display = 'none';
+                                        const fallback = target.parentElement?.querySelector('.img-fallback');
+                                        if (fallback) (fallback as HTMLElement).style.display = 'flex';
+                                    }}
+                                />
+                                <div className="img-fallback w-full h-48 items-center justify-center text-slate-500 dark:text-slate-400 text-base" style={{ display: 'none' }}>
+                                    画像を読み込めません
+                                </div>
                             </a>
+                        ) : (
+                            <div className="w-full h-48 flex items-center justify-center text-slate-500 dark:text-slate-400 text-base">
+                                ファイルプレビューが利用できません
+                            </div>
                         )}
                     </div>
                     <p className="text-base text-slate-500 dark:text-slate-400 mt-2 truncate" title={item.fileName}>{item.fileName}</p>
@@ -451,7 +472,10 @@ const InvoiceOCR: React.FC<InvoiceOCRProps> = ({ onSaveExpenses, addToast, reque
                 setItems(prev => prev.filter(i => i.id !== tempId)); // Remove temp item
             }
             if (tempItem.filePath) {
-                await addInboxItem(tempItem); // Add final item if path exists
+                const savedItem = await addInboxItem(tempItem); // Add final item if path exists
+                if (mounted.current && savedItem) {
+                    setItems(prev => [savedItem, ...prev]);
+                }
             }
         }
     };
