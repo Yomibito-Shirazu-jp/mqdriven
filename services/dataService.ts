@@ -3811,6 +3811,70 @@ export const addPurchaseOrder = async (order: Omit<PurchaseOrder, 'id'>): Promis
 };
 
 
+/**
+ * 見積を受注に変換する。
+ * 1. estimatesテーブルのstatusを '2' (受注済) に更新
+ * 2. ordersテーブルに受注レコードを作成（見積の金額・顧客情報を引き継ぐ）
+ */
+export const convertEstimateToOrder = async (estimate: Estimate): Promise<PurchaseOrder> => {
+    const supabase = getSupabase();
+
+    // 1. 見積ステータスを受注済 (status='2') に更新
+    const { error: estError } = await supabase
+        .from('estimates')
+        .update({ status: '2', update_date: new Date().toISOString() })
+        .eq('estimates_id', estimate.id);
+    if (estError) {
+        console.warn('Failed to update estimate status:', estError);
+        // 見積更新失敗しても受注作成は続行
+    }
+
+    // 2. 受注レコードを作成
+    const orderPayload = {
+        client_custmer: estimate.customerName || '未設定',
+        project_code: estimate.title || estimate.projectName || `見積${estimate.id}`,
+        order_date: new Date().toISOString().split('T')[0],
+        quantity: estimate.copies ?? 1,
+        amount: estimate.total ?? estimate.subtotal ?? 0,
+        approval_status1: 'ordered',
+    };
+    const { data, error } = await supabase.from('orders').insert(orderPayload).select().single();
+    ensureSupabaseSuccess(error, '受注レコードの作成に失敗しました');
+    return dbOrderToPurchaseOrder(data);
+};
+
+/**
+ * 受注データから仕訳下書きを作成する。
+ * 借方: 売掛金、貸方: 売上高
+ */
+export const createJournalFromOrder = async (
+    order: PurchaseOrder,
+    userId?: string,
+): Promise<JournalEntry> => {
+    const amount = order.unitPrice * order.quantity;
+    const description = `受注計上: ${order.itemName || order.supplierName || ''} ¥${amount.toLocaleString()}`;
+
+    // 仕訳バッチ＋エントリを作成
+    const entry = await addJournalEntry({
+        description,
+        created_by: userId || null,
+        status: 'draft',
+    } as any);
+
+    // 仕訳明細（借方: 売掛金、貸方: 売上高）を作成
+    const supabase = getSupabase();
+    const lines = [
+        { journal_entry_id: entry.id, account_code: '1150', account_name: '売掛金', description, debit: amount, credit: 0 },
+        { journal_entry_id: entry.id, account_code: '4100', account_name: '売上高', description, debit: 0, credit: amount },
+    ];
+    const { error: lineError } = await supabase.from('journal_lines').insert(lines);
+    if (lineError) {
+        console.warn('仕訳明細の作成に失敗:', lineError);
+    }
+
+    return entry;
+};
+
 export const getInventoryItems = async (): Promise<InventoryItem[]> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('inventory_items').select('*').order('name');
