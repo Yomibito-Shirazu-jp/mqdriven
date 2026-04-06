@@ -3875,6 +3875,88 @@ export const createJournalFromOrder = async (
     return entry;
 };
 
+type SimilarEstimateRow = {
+    specification: string;
+    copies: string;
+    unit_price: string;
+    total: string;
+    customer_name: string;
+    project_name: string;
+    order_flg: string;
+    match_type: 'customer' | 'spec';
+};
+
+/**
+ * 過去の見積実績から類似案件を検索する。
+ *
+ * ロジック:
+ *  1. 顧客名一致 → 同一顧客のリピート価格帯を把握（最大10件）
+ *  2. AIが抽出した印刷仕様キーワードで specification を検索（最大10件）
+ *  3. 両方を結合して返す（match_type で区別可能）
+ *
+ * キーワードは extractPrintSpecKeywords() が生成した
+ * 印刷業界用語（A4, 中綴じ, 16P 等）を想定。
+ */
+export const findSimilarEstimates = async (
+    specKeywords: string[],
+    customerName?: string,
+    limit: number = 20,
+): Promise<SimilarEstimateRow[]> => {
+    const supabase = getSupabase();
+    const mapRow = (r: any, matchType: 'customer' | 'spec'): SimilarEstimateRow => ({
+        specification: r.specification || '',
+        copies: r.copies || '',
+        unit_price: r.unit_price || '',
+        total: r.total || '',
+        customer_name: r.customer_name || '',
+        project_name: r.p_project_name || '',
+        order_flg: r.order_flg || '',
+        match_type: matchType,
+    });
+
+    const results: SimilarEstimateRow[] = [];
+    const halfLimit = Math.ceil(limit / 2);
+
+    // 1. 同一顧客の過去実績（リピート価格帯の参考）
+    if (customerName) {
+        const { data } = await supabase
+            .from('lead_to_cash_view')
+            .select('specification, copies, unit_price, total, customer_name, p_project_name, order_flg')
+            .ilike('customer_name', `%${customerName}%`)
+            .not('total', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(halfLimit);
+        if (data) results.push(...data.map((r: any) => mapRow(r, 'customer')));
+    }
+
+    // 2. 仕様キーワードで検索（AIが抽出した印刷業界用語）
+    const seen = new Set(results.map(r => `${r.specification}-${r.copies}-${r.total}`));
+    const specLimit = limit - results.length;
+
+    for (const kw of specKeywords.slice(0, 6)) {
+        if (!kw || kw.length < 1 || results.length >= limit) break;
+        const batchSize = Math.max(3, Math.ceil(specLimit / Math.min(specKeywords.length, 6)));
+        const { data } = await supabase
+            .from('lead_to_cash_view')
+            .select('specification, copies, unit_price, total, customer_name, p_project_name, order_flg')
+            .ilike('specification', `%${kw}%`)
+            .not('total', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(batchSize);
+        if (data) {
+            for (const r of data) {
+                const key = `${r.specification}-${r.copies}-${r.total}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    results.push(mapRow(r, 'spec'));
+                }
+            }
+        }
+    }
+
+    return results.slice(0, limit);
+};
+
 export const getInventoryItems = async (): Promise<InventoryItem[]> => {
     const supabase = getSupabase();
     const { data, error } = await supabase.from('inventory_items').select('*').order('name');
