@@ -1435,6 +1435,8 @@ const App: React.FC = () => {
                         onRefresh={loadAllData}
                         onSelectJob={(job) => { setSelectedJob(job); setJobDetailModalOpen(true); }}
                         onNewJob={() => setCreateJobModalOpen(true)}
+                        addToast={addToast}
+                        currentUser={currentUser}
                     />
                 );
             case 'sales_customers':

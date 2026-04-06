@@ -2,10 +2,10 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Estimate, SortConfig, EmployeeUser, Customer, Toast, EstimateStatus, EstimateDetail } from '../../types';
 import SortableHeader from '../ui/SortableHeader';
 import EmptyState from '../ui/EmptyState';
-import { FileText, PlusCircle, Pencil, X, Loader, Save, Calculator } from '../Icons';
+import { FileText, PlusCircle, Pencil, X, Loader, Save, Calculator, CheckCircle } from '../Icons';
 import { formatJPY, formatDate } from '../../utils';
 import EstimateDetailModal from './EstimateDetailModal';
-import { addEstimateDetail, deleteEstimateDetail, getEstimateDetails, updateEstimateDetail } from '../../services/dataService';
+import { addEstimateDetail, deleteEstimateDetail, getEstimateDetails, updateEstimateDetail, convertEstimateToOrder } from '../../services/dataService';
 import CustomerMQAnalysis from './CustomerMQAnalysis';
 import {
     BarChart,
@@ -350,6 +350,7 @@ const EstimateManagementPage: React.FC<EstimateManagementPageProps> = ({
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [convertingEstimateId, setConvertingEstimateId] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<TabKey>('list');
     const [detailSubTab, setDetailSubTab] = useState<'overview' | 'details' | 'anomalies'>('overview');
     const [details, setDetails] = useState<EstimateDetail[]>([]);
@@ -771,6 +772,19 @@ const EstimateManagementPage: React.FC<EstimateManagementPageProps> = ({
     };
 
     const quickViewSource = useMemo(() => buildQuickViewSource(quickViewEstimate), [quickViewEstimate]);
+
+    const handleConvertToOrder = async (estimate: Estimate) => {
+        setConvertingEstimateId(estimate.id);
+        try {
+            await convertEstimateToOrder(estimate);
+            addToast(`「${estimate.title || estimate.customerName}」を受注に変換しました。`, 'success');
+            onEstimatePageChange(estimatePage); // リフレッシュ
+        } catch (e: any) {
+            addToast(e?.message || '受注への変換に失敗しました。', 'error');
+        } finally {
+            setConvertingEstimateId(null);
+        }
+    };
 
     const handleSaveEstimate = async (estimateData: Partial<Estimate>) => {
         setIsSaving(true);
@@ -1251,6 +1265,14 @@ const EstimateManagementPage: React.FC<EstimateManagementPageProps> = ({
                                                             title="編集"
                                                         >
                                                             <Pencil className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleConvertToOrder(estimate)}
+                                                            disabled={convertingEstimateId === estimate.id || estimate.status === '受注' || estimate.status === 'ordered' || estimate.status === '2'}
+                                                            className="text-emerald-600 hover:text-emerald-800 disabled:opacity-30 disabled:cursor-not-allowed"
+                                                            title="受注に変換"
+                                                        >
+                                                            {convertingEstimateId === estimate.id ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                                                         </button>
                                                     </div>
                                                 </td>
