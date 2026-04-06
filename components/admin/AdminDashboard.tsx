@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { EmployeeUser, ApplicationWithDetails, JournalEntry } from '../../types';
 import { getSupabase } from '../../services/supabaseClient';
-import { formatJPY } from '../../utils';
+import { formatJPY, deriveApplicationAmount } from '../../utils';
 import {
   AlertTriangle,
   FileText,
@@ -91,15 +91,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
       }
 
       const pendingAmount = (pendingData || []).reduce((sum, app) => {
-        const formData = app.formData as any;
-        const amount = formData?.totalAmount || formData?.amount || 0;
-        return sum + Number(amount);
+        return sum + (deriveApplicationAmount(app.formData) || 0);
       }, 0);
 
       const approvedAmount = (approvedData || []).reduce((sum, app) => {
-        const formData = app.formData as any;
-        const amount = formData?.totalAmount || formData?.amount || 0;
-        return sum + Number(amount);
+        return sum + (deriveApplicationAmount(app.formData) || 0);
       }, 0);
 
       return {

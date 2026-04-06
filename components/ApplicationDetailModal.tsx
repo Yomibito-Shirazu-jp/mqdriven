@@ -4,6 +4,7 @@ import { X, CheckCircle, Send, Loader, FileText } from './Icons';
 import ApplicationStatusBadge from './ApplicationStatusBadge';
 import { getUsers, resolveAttachmentUrl, updateApplication } from '../services/dataService';
 import { useSubmitWithConfirmation } from '../hooks/useSubmitWithConfirmation';
+import { deriveApplicationAmount, formatJPY } from '../utils';
 
 type SummaryHighlight = {
     label: string;
@@ -469,7 +470,8 @@ const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
 
     const { formData, applicationCode, approvalRoute } = application;
     const code = applicationCode?.code;
-    const amount = formData.amount ? `¥${Number(formData.amount).toLocaleString()}` : (formData.totalAmount ? `¥${Number(formData.totalAmount).toLocaleString()}` : null);
+    const derivedAmount = deriveApplicationAmount(formData);
+    const amount = derivedAmount !== null ? formatJPY(derivedAmount) : null;
     const formSummary = React.useMemo(() => buildFormSummary(code, formData), [code, formData]);
     const hasSummarySections =
         formSummary.highlights.length > 0 || formSummary.listSections.length > 0 || formSummary.tableSections.length > 0;

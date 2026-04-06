@@ -5,6 +5,7 @@ import * as dataService from '../../../services/dataService';
 import type { JournalAccountRule, JournalAccountRuleEntry } from '../../../services/dataService';
 import { suggestJournalEntry } from '../../../services/geminiService';
 import { isAccountingTargetApplication } from '../../../components/accounting/accountingApplicationFilter';
+import { deriveApplicationAmount, toFiniteNumber } from '../../../utils';
 
 interface ApprovedApplicationsProps {
   notify?: (message: string, type: 'success' | 'info' | 'error') => void;
@@ -103,28 +104,9 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
     return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
-  const toNumber = (value: any): number | null => {
-    if (value === null || value === undefined) return null;
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
-    if (typeof value === 'string') {
-      const normalized = value.replace(/,/g, '').trim();
-      if (!normalized) return null;
-      const parsed = Number(normalized);
-      if (!Number.isNaN(parsed) && Number.isFinite(parsed)) return parsed;
-    }
-    return null;
-  };
-
+  // Amount extraction uses shared deriveApplicationAmount from utils.ts
   const deriveAmount = (app: ApplicationWithDetails): number | null => {
-    const data = app.formData ?? {};
-    return (
-      toNumber(data.amount) ??
-      toNumber(data.totalAmount) ??
-      toNumber(data.requestedAmount) ??
-      toNumber(data.invoice?.totalGross) ??
-      toNumber(data.invoice?.totalNet) ??
-      null
-    );
+    return deriveApplicationAmount(app.formData);
   };
 
   const getAccountingStatusLabel = (status?: string) => {
@@ -985,7 +967,7 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                         </div>
                       </div>
                       <div className="text-sm font-mono font-semibold text-slate-700 dark:text-slate-200">
-                        {formatCurrency(toNumber(line.amountExclTax) ?? null) || '-'}
+                        {formatCurrency(toFiniteNumber(line.amountExclTax) ?? null) || '-'}
                       </div>
                     </div>
                   ))}
