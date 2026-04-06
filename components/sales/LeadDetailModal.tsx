@@ -522,8 +522,8 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">仕様 / 備考</label>
-                                            <textarea value={estSpec} onChange={e => setEstSpec(e.target.value)} rows={3}
-                                                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm" />
+                                            <textarea value={estSpec} onChange={e => setEstSpec(e.target.value)} rows={8}
+                                                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-mono leading-relaxed" />
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
@@ -537,13 +537,54 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                                                     className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm" />
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={handleCreateEstimate}
-                                            disabled={isCreatingEstimate || !estTitle.trim() || !onAddEstimate}
-                                            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
-                                        >
-                                            {isCreatingEstimate ? <><Loader className="w-4 h-4 animate-spin" />作成中...</> : <><Lightbulb className="w-4 h-4" />見積を作成</>}
-                                        </button>
+                                        <div className="flex gap-2 pt-1">
+                                            <button
+                                                onClick={handleCreateEstimate}
+                                                disabled={isCreatingEstimate || !estTitle.trim() || !onAddEstimate}
+                                                className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                                            >
+                                                {isCreatingEstimate ? <><Loader className="w-4 h-4 animate-spin" />作成中...</> : <><CheckCircle className="w-4 h-4" />この内容で見積作成</>}
+                                            </button>
+                                            <button
+                                                onClick={handleAiAutoEstimate}
+                                                disabled={isAiEstimating || isAIOff}
+                                                className="flex items-center gap-1 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 font-semibold py-2.5 px-3 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-500 disabled:opacity-50 transition"
+                                                title="AIで再生成"
+                                            >
+                                                {isAiEstimating ? <Loader className="w-4 h-4 animate-spin" /> : <Lightbulb className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    setEstTitle('');
+                                                    setEstCustomer(lead.company || '');
+                                                    setEstCopies(1);
+                                                    setEstUnitPrice(0);
+                                                    setEstSpec('');
+                                                    setEstDeliveryDate('');
+                                                    setSimilarCount(null);
+                                                }}
+                                                className="flex-1 flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 py-2 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                                            >
+                                                リセット
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    onSave(lead.id, {
+                                                        status: LeadStatus.Disqualified,
+                                                        updatedAt: new Date().toISOString(),
+                                                        infoSalesActivity: `[${new Date().toLocaleString('ja-JP')}] 見積提案を却下しました。\n${lead.infoSalesActivity || ''}`.trim(),
+                                                    });
+                                                    addToast('この案件を失注にしました。', 'info');
+                                                    onClose();
+                                                }}
+                                                className="flex-1 flex items-center justify-center gap-2 text-sm text-rose-500 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-200 py-2 rounded-lg border border-rose-200 dark:border-rose-700 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition"
+                                            >
+                                                <X className="w-3 h-3" />
+                                                この案件を却下
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
 
