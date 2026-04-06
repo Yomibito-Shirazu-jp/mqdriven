@@ -4,6 +4,7 @@ import { X, CheckCircle, Send, Loader, FileText } from './Icons';
 import ApplicationStatusBadge from './ApplicationStatusBadge';
 import { getUsers, resolveAttachmentUrl, updateApplication } from '../services/dataService';
 import { useSubmitWithConfirmation } from '../hooks/useSubmitWithConfirmation';
+import { deriveApplicationAmount, formatJPY } from '../utils';
 
 type SummaryHighlight = {
     label: string;
@@ -82,25 +83,8 @@ const sumNumericArrayAmounts = (values: any[]): number | null => {
     return total > 0 ? total : null;
 };
 
-const deriveApplicationAmount = (rawData?: any): number | null => {
-    if (!rawData || typeof rawData !== 'object') return null;
-    const data = rawData as Record<string, any>;
-    const invoice = data.invoice || {};
-
-    const amountCandidates = [
-        toNumericAmount(data.amount),
-        toNumericAmount(data.totalAmount),
-        toNumericAmount(data.requestedAmount),
-        toNumericAmount(data.estimatedAmount),
-        toNumericAmount(invoice.totalGross),
-        toNumericAmount(invoice.totalNet),
-        toNumericAmount(invoice.totalAmount),
-        toNumericAmount(invoice.total),
-        sumNumericArrayAmounts(data.details),
-        sumNumericArrayAmounts(invoice.lines),
-    ].filter((value): value is number => value !== null);
-
-    return amountCandidates.length > 0 ? amountCandidates[0] : null;
+const deriveAmount = (app: ApplicationWithDetails): number | null => {
+    return deriveApplicationAmount(app.formData);
 };
 
 const resolveCustomerCandidate = (line: any): string => {
@@ -511,8 +495,8 @@ const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
 
     const { formData, applicationCode, approvalRoute } = application;
     const code = applicationCode?.code;
-    const amountValue = deriveApplicationAmount(formData);
-    const amount = amountValue !== null ? `¥${Math.round(amountValue).toLocaleString('ja-JP')}` : null;
+    const derivedAmount = deriveApplicationAmount(formData);
+    const amount = derivedAmount !== null ? formatJPY(derivedAmount) : null;
     const formSummary = React.useMemo(() => buildFormSummary(code, formData), [code, formData]);
     const hasSummarySections =
         formSummary.highlights.length > 0 || formSummary.listSections.length > 0 || formSummary.tableSections.length > 0;

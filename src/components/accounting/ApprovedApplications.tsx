@@ -5,6 +5,7 @@ import * as dataService from '../../../services/dataService';
 import type { JournalAccountRule, JournalAccountRuleEntry } from '../../../services/dataService';
 import { suggestJournalEntry } from '../../../services/geminiService';
 import { isAccountingTargetApplication } from '../../../components/accounting/accountingApplicationFilter';
+import { deriveApplicationAmount, toFiniteNumber } from '../../../utils';
 
 interface ApprovedApplicationsProps {
   notify?: (message: string, type: 'success' | 'info' | 'error') => void;
@@ -103,50 +104,9 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
     return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
-  const toNumber = (value: any): number | null => {
-    if (value === null || value === undefined) return null;
-    if (typeof value === 'number' && Number.isFinite(value)) return value;
-    if (typeof value === 'string') {
-      const normalized = value.replace(/,/g, '').trim();
-      if (!normalized) return null;
-      const parsed = Number(normalized);
-      if (!Number.isNaN(parsed) && Number.isFinite(parsed)) return parsed;
-    }
-    return null;
-  };
-
-  const sumNumericArrayAmounts = (values: any[]): number | null => {
-    if (!Array.isArray(values)) return null;
-    const total = values.reduce((sum, value) => {
-      const amount = toNumber(value?.amount ?? value);
-      return sum + (amount || 0);
-    }, 0);
-    return total > 0 ? total : null;
-  };
-
-  const deriveAmount = (app: ApplicationWithDetails): number | null => {
-    const data = app.formData ?? {};
-    const invoice = data.invoice ?? {};
-    const candidates = [
-      toNumber(data.amount),
-      toNumber(data.totalAmount),
-      toNumber(data.requestedAmount),
-      toNumber(data.estimatedAmount),
-      toNumber(invoice.totalGross),
-      toNumber(invoice.totalNet),
-      toNumber(invoice.totalAmount),
-      toNumber(invoice.total),
-      toNumber(invoice.netAmount),
-      sumNumericArrayAmounts(data.details),
-      sumNumericArrayAmounts(invoice.lines),
-    ];
-    return candidates.find((value): value is number => value !== null) ?? null;
-  };
-
   const toNonEmptyText = (value: unknown): string => {
     if (typeof value !== 'string') return '';
-    const trimmed = value.trim();
-    return trimmed;
+    return value.trim();
   };
 
   const formatFallbackObject = (value: unknown): string => {
@@ -224,6 +184,11 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
       if (text) return text;
     }
     return '補足情報なし';
+  };
+
+  // Amount extraction uses shared deriveApplicationAmount from utils.ts
+  const deriveAmount = (app: ApplicationWithDetails): number | null => {
+    return deriveApplicationAmount(app.formData);
   };
 
   const getAccountingStatusLabel = (status?: string) => {
@@ -1100,14 +1065,8 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                           {deriveLineSubLabel(line)}
                         </div>
                       </div>
-                      <div className="text-base font-mono font-semibold text-slate-800 dark:text-slate-100">
-                        {formatCurrency(
-                          toNumber(line.amountExclTax) ??
-                            toNumber(line.amountInclTax) ??
-                            toNumber(line.amount) ??
-                            toNumber(line.total) ??
-                            null,
-                        ) || '-'}
+                      <div className="text-sm font-mono font-semibold text-slate-700 dark:text-slate-200">
+                        {formatCurrency(toFiniteNumber(line.amountExclTax) ?? null) || '-'}
                       </div>
                     </div>
                   ))}
