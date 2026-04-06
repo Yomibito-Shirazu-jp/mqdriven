@@ -58,7 +58,6 @@ interface EstimateManagementPageProps {
     customers: Customer[];
     allUsers: EmployeeUser[];
     onAddEstimate: (estimate: Partial<Estimate>) => Promise<void>;
-    onShowAiEstimate?: () => void;
     addToast: (message: string, type: Toast['type']) => void;
     currentUser: EmployeeUser | null;
     searchTerm: string;
@@ -324,7 +323,6 @@ const EstimateManagementPage: React.FC<EstimateManagementPageProps> = ({
     customers: _customers,
     allUsers: _allUsers,
     onAddEstimate,
-    onShowAiEstimate,
     addToast,
     currentUser,
     searchTerm,
