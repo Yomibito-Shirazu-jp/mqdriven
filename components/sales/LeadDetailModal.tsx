@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Lead, LeadStatus, Toast, ConfirmationDialogProps, EmployeeUser, Estimate, EstimateStatus } from '../../types';
-import { X, Pencil, Mail, CheckCircle, Lightbulb, Search, Loader } from '../Icons';
+import { X, Pencil, Mail, CheckCircle, Lightbulb, Search, Loader, Send } from '../Icons';
 import { generateLeadReplyEmail } from '../../services/geminiService';
+import { sendEmail } from '../../services/emailService';
 
 interface LeadDetailModalProps {
     isOpen: boolean;
@@ -38,6 +39,9 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
     const [activeAiTab, setActiveAiTab] = useState<'email' | 'proposal' | 'investigation'>('email');
     const [isGeneratingReply, setIsGeneratingReply] = useState(false);
     const [aiReply, setAiReply] = useState<string | null>(null);
+    const [replySubject, setReplySubject] = useState('');
+    const [replyBody, setReplyBody] = useState('');
+    const [isSendingEmail, setIsSendingEmail] = useState(false);
 
     // 見積フォーム state
     const [estTitle, setEstTitle] = useState('');
@@ -119,7 +123,22 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
         try {
             const reply = await generateLeadReplyEmail(lead, currentUser?.name || '石嶋洋平');
-            setAiReply(reply.body);
+            const departmentLine = currentUser?.department || '本社';
+            const signature = [
+                '---',
+                '',
+                '文唱堂印刷株式会社',
+                departmentLine,
+                currentUser?.name || '',
+                '〒101-0025 東京都千代田区神田佐久間町3-37',
+                'TEL：03-3851-0111　FAX：03-3861-1979',
+                `Mail: ${currentUser?.email || ''}`,
+                'Web: http://b-p.co.jp',
+            ].join('\n');
+            const bodyWithSignature = `${reply.body}\n\n${signature}`;
+            setAiReply(bodyWithSignature);
+            setReplySubject(reply.subject);
+            setReplyBody(bodyWithSignature);
             addToast('AI返信を生成しました', 'success');
         } catch (error) {
             console.error('AI返信生成エラー:', error);
@@ -127,6 +146,44 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
         } finally {
             setIsGeneratingReply(false);
         }
+    };
+
+    // メールを直接送信
+    const handleSendEmail = async () => {
+        if (!lead?.email || !replyBody.trim()) return;
+        setIsSendingEmail(true);
+        try {
+            await sendEmail({
+                to: [lead.email],
+                subject: replySubject || 'お問い合わせありがとうございます',
+                body: replyBody,
+            });
+            const timestamp = new Date().toLocaleString('ja-JP');
+            const logMessage = `[${timestamp}] AI返信メールを送信しました。（${lead.email}宛）`;
+            const updatedInfo = `${logMessage}\n${lead.infoSalesActivity || ''}`.trim();
+            const statusTimestamp = new Date().toISOString();
+            await onSave(lead.id, {
+                infoSalesActivity: updatedInfo,
+                status: LeadStatus.Contacted,
+                updatedAt: statusTimestamp,
+                statusUpdatedAt: statusTimestamp,
+                assignedTo: currentUser?.name || null,
+            });
+            addToast(`${lead.email} にメールを送信しました。`, 'success');
+        } catch (error: any) {
+            console.error('メール送信エラー:', error);
+            addToast(error?.message || 'メールの送信に失敗しました。', 'error');
+        } finally {
+            setIsSendingEmail(false);
+        }
+    };
+
+    // Gmailで下書きを開く
+    const handleOpenGmailDraft = () => {
+        if (!lead?.email) return;
+        const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${lead.email}&su=${encodeURIComponent(replySubject)}&body=${encodeURIComponent(replyBody)}`;
+        window.open(gmailUrl, '_blank');
+        addToast('Gmailの下書きを開きました。', 'info');
     };
 
     // リードが変更されたらAI返信を生成
@@ -276,45 +333,78 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                             {/* Tab Content */}
                             <div className="bg-slate-50 dark:bg-slate-700 rounded-lg p-4">
                                 {activeAiTab === 'email' && (
-                                    <div>
-                                        <div className="mb-4">
-                                            <div className="font-semibold text-slate-900 dark:text-white mb-2">
-                                                {lead.company} {lead.name}様
+                                    <div className="space-y-3">
+                                        {isGeneratingReply ? (
+                                            <div className="flex items-center gap-2 py-8 justify-center">
+                                                <Loader className="w-5 h-5 animate-spin text-blue-500" />
+                                                <span className="text-slate-500">AI返信を生成中...</span>
                                             </div>
-                                            <div className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
-                                                {isGeneratingReply ? (
-                                                    <div className="flex items-center gap-2 py-4">
-                                                        <Loader className="w-4 h-4 animate-spin" />
-                                                        <span>AI返信を生成中...</span>
-                                                    </div>
-                                                ) : aiReply ? (
-                                                    aiReply
-                                                ) : isAIOff ? (
-                                                    <div className="text-slate-500 italic">
-                                                        AI機能は現在無効です。
-                                                    </div>
-                                                ) : (
-                                                    <div className="text-slate-500 italic">
-                                                        返信を生成できませんでした。
-                                                    </div>
-                                                )}
+                                        ) : !aiReply && isAIOff ? (
+                                            <div className="text-center py-8 text-slate-500 italic">AI機能は現在無効です。</div>
+                                        ) : !aiReply ? (
+                                            <div className="text-center py-8">
+                                                <button
+                                                    onClick={handleGenerateAiReply}
+                                                    className="flex items-center gap-2 mx-auto bg-blue-600 text-white font-semibold py-2.5 px-5 rounded-lg hover:bg-blue-700"
+                                                >
+                                                    <Lightbulb className="w-4 h-4" />
+                                                    AIで返信を生成
+                                                </button>
                                             </div>
-                                        </div>
-
-                                        {/* Action Buttons */}
-                                        <div className="flex gap-3">
-                                            <button
-                                                onClick={handleGenerateAiReply}
-                                                disabled={isGeneratingReply || isAIOff}
-                                                className="flex items-center gap-2 bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                                            >
-                                                <CheckCircle className="w-4 h-4" />
-                                                {isGeneratingReply ? '生成中...' : 'この内容を確認'}
-                                            </button>
-                                            <button className="flex items-center gap-2 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 font-semibold py-2 px-4 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-500">
-                                                次へ進む
-                                            </button>
-                                        </div>
+                                        ) : (
+                                            <>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">宛先</label>
+                                                    <div className="px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md text-slate-700 dark:text-slate-300">
+                                                        {lead.email || '（メールアドレスなし）'}
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">件名</label>
+                                                    <input
+                                                        type="text"
+                                                        value={replySubject}
+                                                        onChange={e => setReplySubject(e.target.value)}
+                                                        className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">本文</label>
+                                                    <textarea
+                                                        value={replyBody}
+                                                        onChange={e => setReplyBody(e.target.value)}
+                                                        rows={12}
+                                                        className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-md font-mono leading-relaxed"
+                                                    />
+                                                </div>
+                                                <div className="flex gap-2 pt-1">
+                                                    <button
+                                                        onClick={handleSendEmail}
+                                                        disabled={isSendingEmail || !lead.email}
+                                                        className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                                                    >
+                                                        {isSendingEmail ? <><Loader className="w-4 h-4 animate-spin" />送信中...</> : <><Send className="w-4 h-4" />送信</>}
+                                                    </button>
+                                                    <button
+                                                        onClick={handleOpenGmailDraft}
+                                                        disabled={!lead.email}
+                                                        className="flex items-center gap-2 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 font-semibold py-2.5 px-4 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-500 disabled:opacity-50 transition"
+                                                    >
+                                                        <Mail className="w-4 h-4" />
+                                                        Gmailで開く
+                                                    </button>
+                                                    <button
+                                                        onClick={handleGenerateAiReply}
+                                                        disabled={isGeneratingReply}
+                                                        className="flex items-center gap-2 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 font-semibold py-2.5 px-4 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-500 disabled:opacity-50 transition"
+                                                        title="AIで再生成"
+                                                    >
+                                                        {isGeneratingReply ? <Loader className="w-4 h-4 animate-spin" /> : <Lightbulb className="w-4 h-4" />}
+                                                        再生成
+                                                    </button>
+                                                </div>
+                                            </>
+                                        )}
                                     </div>
                                 )}
 
