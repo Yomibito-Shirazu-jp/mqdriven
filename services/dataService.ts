@@ -2257,6 +2257,28 @@ export const getLeads = async (): Promise<Lead[]> => {
     return (data || []).map(dbLeadToLead);
 };
 
+/**
+ * 受注済み顧客名のセットを返す。
+ * lead_to_cash_view の order_flg='1' を持つ顧客名を収集し、
+ * リード管理画面で lead.company とマッチして「受注済」バッジを表示するために使う。
+ */
+export const getOrderedCustomerNames = async (): Promise<Set<string>> => {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+        .from('lead_to_cash_view')
+        .select('customer_name')
+        .eq('order_flg', '1');
+    if (error) {
+        console.warn('Failed to fetch ordered customer names:', error);
+        return new Set();
+    }
+    return new Set(
+        (data || [])
+            .map((r: any) => (typeof r.customer_name === 'string' ? r.customer_name.trim() : ''))
+            .filter(Boolean)
+    );
+};
+
 export const addLead = async (leadData: Partial<Lead>): Promise<Lead> => {
     const supabase = getSupabase();
     const payload = leadToDbLead(leadData) as Record<string, any>;

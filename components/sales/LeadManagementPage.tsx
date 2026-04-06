@@ -29,9 +29,10 @@ interface LeadManagementPageProps {
   customers: Customer[]; // 既存顧客リスト
   onCreateExistingCustomerLead: (leadData: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   onNavigate?: (page: string) => void; // ナビゲーション用
+  orderedCustomerNames?: Set<string>; // 受注済み顧客名セット（lead_to_cash_viewから取得）
 }
 
-const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTerm, onRefresh, onUpdateLead, onDeleteLead, addToast, requestConfirmation, currentUser, isAIOff, onAddEstimate, customers, onCreateExistingCustomerLead, onNavigate }) => {
+const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTerm, onRefresh, onUpdateLead, onDeleteLead, addToast, requestConfirmation, currentUser, isAIOff, onAddEstimate, customers, onCreateExistingCustomerLead, onNavigate, orderedCustomerNames }) => {
     const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'updatedAt', direction: 'descending' });
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -320,6 +321,19 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
         return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${style}`}>{label}</span>;
     };
 
+    const renderOrderBadge = (lead: Lead) => {
+        const isOrdered = orderedCustomerNames?.has(lead.company || '') ?? false;
+        return (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
+                isOrdered
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200'
+                    : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+            }`}>
+                {isOrdered ? '受注済' : '未受注'}
+            </span>
+        );
+    };
+
     const extractEstimateSentTimestampFromLog = (lead: Lead): string | null => {
         const raw = lead.infoSalesActivity || '';
         const match = raw.match(/\[([^\]]+)\]\s*見積メールを送信しました。?/);
@@ -458,6 +472,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                     <th scope="col" className="px-6 py-3 font-medium text-left">対応フラグ</th>
                                     <th scope="col" className="px-6 py-3 font-medium text-center whitespace-nowrap">企業調査</th>
                                     <th scope="col" className="px-6 py-3 font-medium text-center whitespace-nowrap">見積</th>
+                                    <th scope="col" className="px-6 py-3 font-medium text-center whitespace-nowrap">受注</th>
                                     <th scope="col" className="px-6 py-3 font-medium text-center whitespace-nowrap">顧客種別</th>
                                     <SortableHeader sortKey="status" label="ステータス" sortConfig={sortConfig} requestSort={requestSort} />
                                     <SortableHeader sortKey="inquiryTypes" label="問い合わせ種別" sortConfig={sortConfig} requestSort={requestSort} />
@@ -520,6 +535,9 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                                     );
                                                 })()}
                                             </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                            {renderOrderBadge(lead)}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-center">
                                             {lead.isExistingCustomer ? (
@@ -638,7 +656,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                     </div>
                 </div>
             ) : (
-                <LeadKanbanView leads={filteredLeads} onUpdateLead={onUpdateLead} onCardClick={handleRowClick} />
+                <LeadKanbanView leads={filteredLeads} onUpdateLead={onUpdateLead} onCardClick={handleRowClick} orderedCustomerNames={orderedCustomerNames} />
             )}
             <LeadDetailModal
                 isOpen={isModalOpen}
