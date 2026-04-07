@@ -2,9 +2,10 @@ import React, { useMemo, useState } from 'react';
 import JobList from '../JobList';
 import EmptyState from '../ui/EmptyState';
 import SortableHeader from '../ui/SortableHeader';
-import { Briefcase } from '../Icons';
-import { ProjectBudgetSummary, PurchaseOrder, PurchaseOrderStatus, SortConfig } from '../../types';
+import { Briefcase, FileText, Loader } from '../Icons';
+import { ProjectBudgetSummary, PurchaseOrder, PurchaseOrderStatus, SortConfig, Toast, EmployeeUser } from '../../types';
 import { formatDate, formatJPY } from '../../utils';
+import { createJournalFromOrder } from '../../services/dataService';
 
 interface SalesOrdersPageProps {
   projectSummaries: ProjectBudgetSummary[];
@@ -14,6 +15,8 @@ interface SalesOrdersPageProps {
   onNewJob: () => void;
   onRefresh?: () => void | Promise<void>;
   isLoading?: boolean;
+  addToast?: (message: string, type: Toast['type']) => void;
+  currentUser?: EmployeeUser | null;
 }
 
 type OrderRow = PurchaseOrder & {
@@ -34,8 +37,26 @@ const StatusBadge: React.FC<{ status: PurchaseOrderStatus }> = ({ status }) => (
   </span>
 );
 
-const OrdersSection: React.FC<{ orders: PurchaseOrder[]; projects: ProjectBudgetSummary[] }> = ({ orders, projects }) => {
+const OrdersSection: React.FC<{
+  orders: PurchaseOrder[];
+  projects: ProjectBudgetSummary[];
+  addToast?: (message: string, type: Toast['type']) => void;
+  currentUser?: EmployeeUser | null;
+}> = ({ orders, projects, addToast, currentUser }) => {
   const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'orderDate', direction: 'ascending' });
+  const [postingOrderId, setPostingOrderId] = useState<string | null>(null);
+
+  const handlePostToJournal = async (order: OrderRow) => {
+    setPostingOrderId(order.id);
+    try {
+      await createJournalFromOrder(order, currentUser?.id);
+      addToast?.(`「${order.supplierName || order.projectCode}」の仕訳を作成しました。`, 'success');
+    } catch (e: any) {
+      addToast?.(e?.message || '仕訳の作成に失敗しました。', 'error');
+    } finally {
+      setPostingOrderId(null);
+    }
+  };
 
   const jobLookup = useMemo(() => {
     const lookup = new Map<string, ProjectBudgetSummary>();
@@ -124,6 +145,7 @@ const OrdersSection: React.FC<{ orders: PurchaseOrder[]; projects: ProjectBudget
                 <SortableHeader sortKey="unitPrice" label="単価" sortConfig={sortConfig} requestSort={requestSort} className="text-right" />
                 <SortableHeader sortKey="totalAmount" label="売上高" sortConfig={sortConfig} requestSort={requestSort} className="text-right" />
                 <SortableHeader sortKey="status" label="ステータス" sortConfig={sortConfig} requestSort={requestSort} />
+                <th scope="col" className="px-6 py-3 font-medium text-center">計上</th>
               </tr>
             </thead>
             <tbody>
@@ -149,6 +171,17 @@ const OrdersSection: React.FC<{ orders: PurchaseOrder[]; projects: ProjectBudget
                     {formatJPY(order.totalAmount)}
                   </td>
                   <td className="px-6 py-4"><StatusBadge status={order.status} /></td>
+                  <td className="px-6 py-4 text-center">
+                    <button
+                      onClick={() => handlePostToJournal(order)}
+                      disabled={postingOrderId === order.id}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/50 dark:text-indigo-200 dark:hover:bg-indigo-800/50 disabled:opacity-50 transition"
+                      title="仕訳下書きを作成"
+                    >
+                      {postingOrderId === order.id ? <Loader className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                      仕訳作成
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -167,6 +200,8 @@ const SalesOrdersPage: React.FC<SalesOrdersPageProps> = ({
   onNewJob,
   onRefresh,
   isLoading = false,
+  addToast,
+  currentUser,
 }) => {
   return (
     <div className="space-y-10">
@@ -198,7 +233,7 @@ const SalesOrdersPage: React.FC<SalesOrdersPageProps> = ({
       </section>
 
       <section className="space-y-4">
-        <OrdersSection orders={orders} projects={projectSummaries} />
+        <OrdersSection orders={orders} projects={projectSummaries} addToast={addToast} currentUser={currentUser} />
       </section>
     </div>
   );

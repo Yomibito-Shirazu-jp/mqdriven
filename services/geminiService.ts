@@ -1285,6 +1285,138 @@ export const draftEstimate = async (prompt: string): Promise<Partial<Estimate>> 
   });
 };
 
+/**
+ * Step 1: リードの自然言語の問い合わせ文から、DBの印刷仕様を検索できる
+ * キーワードをAIが抽出する。
+ *
+ * 例: 「A4のパンフレットを300部くらい作りたい」
+ *   → ["A4", "パンフレット", "中綴じ", "無線綴じ", "フルカラー"]
+ *
+ * DBの specification は「B5 60P 無線綴じ」「A4 16P 中綴じ」のような
+ * 業界用語なので、自然言語からそこに辿り着くための変換をAIが行う。
+ */
+export const extractPrintSpecKeywords = async (
+  inquiryText: string,
+): Promise<string[]> => {
+  const ai = checkOnlineAndAIOff();
+  const prompt = `あなたは印刷会社の見積担当です。以下のお客様からの問い合わせ文を読み、
+印刷仕様データベースを検索するためのキーワードを抽出してください。
+
+【データベースの仕様例】
+- "B5 60P 無線綴じ"
+- "A4 16P 中綴じ"
+- "B4チラシ 2つ折り"
+- "名刺"
+- "ペラ 化粧断ち"
+- "POD無線綴じ角R カバーかけ"
+
+【抽出するキーワードの種類】
+- 用紙サイズ（A4, B5, A3, B4 等）
+- ページ数（16P, 32P, 60P 等）
+- 製本方法（中綴じ, 無線綴じ, 折り 等）
+- 印刷種別（名刺, チラシ, パンフレット, 冊子, ポスター 等）
+- 加工（PP貼り, 箔押し, 角R 等）
+- 色数（4C, フルカラー, 1C 等）
+
+問い合わせ文から推測できるものも含めてください。
+例:「パンフレット」なら「中綴じ」や「無線綴じ」も候補。
+
+問い合わせ文:
+${inquiryText}
+
+キーワードだけをJSON配列で返してください。例: ["A4", "中綴じ", "16P", "フルカラー"]`;
+
+  return withRetry(async () => {
+    const response = await ai.models.generateContent({ model, contents: prompt });
+    let text = response.text.trim();
+    // JSON配列を抽出
+    const match = text.match(/\[[\s\S]*\]/);
+    if (match) {
+      try {
+        const arr = JSON.parse(match[0]);
+        if (Array.isArray(arr)) return arr.filter((s: any) => typeof s === 'string' && s.length >= 1);
+      } catch { /* fall through */ }
+    }
+    // フォールバック: カンマ区切り
+    return text.replace(/[\[\]"]/g, '').split(',').map(s => s.trim()).filter(Boolean);
+  });
+};
+
+/**
+ * Step 3: 過去の実績データをコンテキストにしてAI見積を生成する。
+ *
+ * Step 1 (extractPrintSpecKeywords) でキーワードを抽出し、
+ * Step 2 (findSimilarEstimates) で過去データを取得した後に呼ぶ。
+ */
+export const draftEstimateFromLeadWithHistory = async (
+  lead: Lead,
+  similarEstimates: Array<{ specification: string; copies: string; unit_price: string; total: string; customer_name: string; project_name: string; order_flg: string }>,
+): Promise<Partial<Estimate>> => {
+  const ai = checkOnlineAndAIOff();
+
+  // 受注実績ありを上位に、なしを下位に並べ替え
+  const sorted = [...similarEstimates].sort((a, b) => {
+    if (a.order_flg === '1' && b.order_flg !== '1') return -1;
+    if (a.order_flg !== '1' && b.order_flg === '1') return 1;
+    return 0;
+  });
+
+  const historyBlock = sorted.length > 0
+    ? sorted
+        .slice(0, 15)
+        .map((e, i) => `${i + 1}. 仕様:${e.specification} / 部数:${e.copies} / 単価:¥${e.unit_price} / 合計:¥${e.total} / 顧客:${e.customer_name} / 案件:${e.project_name} / 受注:${e.order_flg === '1' ? '○' : '×'}`)
+        .join('\n')
+    : '（類似実績なし — 一般的な印刷業界の相場で見積もってください）';
+
+  const orderedOnly = sorted.filter(e => e.order_flg === '1');
+  const avgTotal = orderedOnly.length > 0
+    ? Math.round(orderedOnly.reduce((s, e) => s + (Number(e.total) || 0), 0) / orderedOnly.length)
+    : null;
+  const priceHint = avgTotal ? `\n※ 受注実績の平均合計額: ¥${avgTotal.toLocaleString()}` : '';
+
+  const prompt = `あなたは日本の印刷会社「文唱堂印刷」で20年以上の経験を持つベテランの見積担当者です。
+以下のリード（問い合わせ）情報と、社内の過去案件の実績データを参考に、現実的で詳細な見積をJSON形式で作成してください。
+
+【最重要ルール】
+1. 過去実績の「受注○」のデータの単価・金額に最も近い価格帯で見積もること
+2. 同一顧客の過去実績がある場合、その顧客への価格帯を踏襲すること
+3. 実績がない場合のみ一般的な相場で算出すること
+4. items配列の各項目のpriceは quantity × unitPrice と一致させること${priceHint}
+
+===== リード情報 =====
+顧客名: ${lead.company || '不明'}
+担当者: ${lead.name || '不明'}
+問い合わせ内容:
+${lead.message || '詳細なし'}
+問い合わせ種別: ${lead.inquiryType || lead.inquiryTypes?.join(', ') || '不明'}
+予算感: ${lead.budget || '未提示'}
+希望納期: ${lead.timeline || '未定'}
+
+===== 過去の類似案件実績（${sorted.length}件中上位15件）=====
+${historyBlock}
+========================`;
+
+  return withRetry(async () => {
+    const response = await ai.models.generateContent({
+      model,
+      contents: prompt,
+      config: {
+        responseSchema: draftEstimateSchema as any,
+      },
+    });
+    let jsonStr = response.text.trim();
+    if (jsonStr.startsWith("```json")) {
+      jsonStr = jsonStr.substring(7, jsonStr.length - 3).trim();
+    }
+    if (jsonStr.startsWith("```")) {
+      jsonStr = jsonStr.substring(3, jsonStr.length - 3).trim();
+    }
+    const parsed = JSON.parse(jsonStr);
+    if (!parsed.items) parsed.items = [];
+    return parsed;
+  });
+};
+
 export const draftEstimateFromSpecFile = async (
   fileBase64: string,
   mimeType: string,

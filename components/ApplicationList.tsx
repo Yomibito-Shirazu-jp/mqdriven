@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { ApplicationWithDetails, SortConfig } from '../types';
 import ApplicationStatusBadge from './ApplicationStatusBadge';
 import { ArrowUpDown, ChevronDown, Eye, RefreshCw, Trash2, X, FileText } from './Icons';
-import { formatDateTime, formatJPY } from '../utils';
+import { formatDateTime, formatJPY, deriveApplicationAmount } from '../utils';
 
 interface ApplicationListProps {
   applications: ApplicationWithDetails[];
@@ -17,26 +17,7 @@ interface ApplicationListProps {
   resubmissionChildrenMap?: Record<string, string>;
 }
 
-const toNumber = (value: any): number | null => {
-  if (value === null || value === undefined) return null;
-  if (typeof value === 'number' && Number.isFinite(value)) return value;
-  if (typeof value === 'string') {
-    const normalized = value.replace(/,/g, '').trim();
-    if (!normalized) return null;
-    const parsed = Number(normalized);
-    if (!Number.isNaN(parsed) && Number.isFinite(parsed)) return parsed;
-  }
-  return null;
-};
-
-const sumNumericArray = (values: any[]): number | null => {
-  if (!Array.isArray(values)) return null;
-  const total = values.reduce((sum, value) => {
-    const amount = toNumber(value?.amount ?? value);
-    return sum + (amount || 0);
-  }, 0);
-  return total > 0 ? total : null;
-};
+// Amount extraction uses shared deriveApplicationAmount from utils.ts
 
 const pickFirstString = (values: any[]): string | null => {
   for (const value of values) {
@@ -79,20 +60,7 @@ const deriveApplicationSummary = (app: ApplicationWithDetails) => {
   const data: any = app.formData || {};
   const invoice = data.invoice || {};
 
-  const amountCandidates = [
-    toNumber(data.amount),
-    toNumber(data.totalAmount),
-    toNumber(data.requestedAmount),
-    toNumber(data.estimatedAmount),
-    toNumber(invoice.totalGross),
-    toNumber(invoice.totalNet),
-    toNumber(invoice.totalAmount),
-    toNumber(invoice.total),
-    sumNumericArray(data.details),
-    sumNumericArray(invoice.lines),
-  ].filter((value): value is number => value !== null);
-
-  const amount = amountCandidates.length > 0 ? amountCandidates[0] : null;
+  const amount = deriveApplicationAmount(app.formData);
   const formattedAmount = amount !== null ? formatJPY(amount) : '-';
 
   const payee = pickFirstString([

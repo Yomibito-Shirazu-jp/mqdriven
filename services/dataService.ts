@@ -2257,6 +2257,28 @@ export const getLeads = async (): Promise<Lead[]> => {
     return (data || []).map(dbLeadToLead);
 };
 
+/**
+ * 受注済み顧客名のセットを返す。
+ * lead_to_cash_view の order_flg='1' を持つ顧客名を収集し、
+ * リード管理画面で lead.company とマッチして「受注済」バッジを表示するために使う。
+ */
+export const getOrderedCustomerNames = async (): Promise<Set<string>> => {
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+        .from('lead_to_cash_view')
+        .select('customer_name')
+        .eq('order_flg', '1');
+    if (error) {
+        console.warn('Failed to fetch ordered customer names:', error);
+        return new Set();
+    }
+    return new Set(
+        (data || [])
+            .map((r: any) => (typeof r.customer_name === 'string' ? r.customer_name.trim() : ''))
+            .filter(Boolean)
+    );
+};
+
 export const addLead = async (leadData: Partial<Lead>): Promise<Lead> => {
     const supabase = getSupabase();
     const payload = leadToDbLead(leadData) as Record<string, any>;
@@ -3788,6 +3810,152 @@ export const addPurchaseOrder = async (order: Omit<PurchaseOrder, 'id'>): Promis
     return dbOrderToPurchaseOrder(data);
 };
 
+
+/**
+ * 見積を受注に変換する。
+ * 1. estimatesテーブルのstatusを '2' (受注済) に更新
+ * 2. ordersテーブルに受注レコードを作成（見積の金額・顧客情報を引き継ぐ）
+ */
+export const convertEstimateToOrder = async (estimate: Estimate): Promise<PurchaseOrder> => {
+    const supabase = getSupabase();
+
+    // 1. 見積ステータスを受注済 (status='2') に更新
+    const { error: estError } = await supabase
+        .from('estimates')
+        .update({ status: '2', update_date: new Date().toISOString() })
+        .eq('estimates_id', estimate.id);
+    if (estError) {
+        console.warn('Failed to update estimate status:', estError);
+        // 見積更新失敗しても受注作成は続行
+    }
+
+    // 2. 受注レコードを作成
+    const orderPayload = {
+        client_custmer: estimate.customerName || '未設定',
+        project_code: estimate.title || estimate.projectName || `見積${estimate.id}`,
+        order_date: new Date().toISOString().split('T')[0],
+        quantity: estimate.copies ?? 1,
+        amount: estimate.total ?? estimate.subtotal ?? 0,
+        approval_status1: 'ordered',
+    };
+    const { data, error } = await supabase.from('orders').insert(orderPayload).select().single();
+    ensureSupabaseSuccess(error, '受注レコードの作成に失敗しました');
+    return dbOrderToPurchaseOrder(data);
+};
+
+/**
+ * 受注データから仕訳下書きを作成する。
+ * 借方: 売掛金、貸方: 売上高
+ */
+export const createJournalFromOrder = async (
+    order: PurchaseOrder,
+    userId?: string,
+): Promise<JournalEntry> => {
+    const amount = order.unitPrice * order.quantity;
+    const description = `受注計上: ${order.itemName || order.supplierName || ''} ¥${amount.toLocaleString()}`;
+
+    // 仕訳バッチ＋エントリを作成
+    const entry = await addJournalEntry({
+        description,
+        created_by: userId || null,
+        status: 'draft',
+    } as any);
+
+    // 仕訳明細（借方: 売掛金、貸方: 売上高）を作成
+    const supabase = getSupabase();
+    const lines = [
+        { journal_entry_id: entry.id, account_code: '1150', account_name: '売掛金', description, debit: amount, credit: 0 },
+        { journal_entry_id: entry.id, account_code: '4100', account_name: '売上高', description, debit: 0, credit: amount },
+    ];
+    const { error: lineError } = await supabase.from('journal_lines').insert(lines);
+    if (lineError) {
+        console.warn('仕訳明細の作成に失敗:', lineError);
+    }
+
+    return entry;
+};
+
+type SimilarEstimateRow = {
+    specification: string;
+    copies: string;
+    unit_price: string;
+    total: string;
+    customer_name: string;
+    project_name: string;
+    order_flg: string;
+    match_type: 'customer' | 'spec';
+};
+
+/**
+ * 過去の見積実績から類似案件を検索する。
+ *
+ * ロジック:
+ *  1. 顧客名一致 → 同一顧客のリピート価格帯を把握（最大10件）
+ *  2. AIが抽出した印刷仕様キーワードで specification を検索（最大10件）
+ *  3. 両方を結合して返す（match_type で区別可能）
+ *
+ * キーワードは extractPrintSpecKeywords() が生成した
+ * 印刷業界用語（A4, 中綴じ, 16P 等）を想定。
+ */
+export const findSimilarEstimates = async (
+    specKeywords: string[],
+    customerName?: string,
+    limit: number = 20,
+): Promise<SimilarEstimateRow[]> => {
+    const supabase = getSupabase();
+    const mapRow = (r: any, matchType: 'customer' | 'spec'): SimilarEstimateRow => ({
+        specification: r.specification || '',
+        copies: r.copies || '',
+        unit_price: r.unit_price || '',
+        total: r.total || '',
+        customer_name: r.customer_name || '',
+        project_name: r.p_project_name || '',
+        order_flg: r.order_flg || '',
+        match_type: matchType,
+    });
+
+    const results: SimilarEstimateRow[] = [];
+    const halfLimit = Math.ceil(limit / 2);
+
+    // 1. 同一顧客の過去実績（リピート価格帯の参考）
+    if (customerName) {
+        const { data } = await supabase
+            .from('lead_to_cash_view')
+            .select('specification, copies, unit_price, total, customer_name, p_project_name, order_flg')
+            .ilike('customer_name', `%${customerName}%`)
+            .not('total', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(halfLimit);
+        if (data) results.push(...data.map((r: any) => mapRow(r, 'customer')));
+    }
+
+    // 2. 仕様キーワードで検索（AIが抽出した印刷業界用語）
+    const seen = new Set(results.map(r => `${r.specification}-${r.copies}-${r.total}`));
+    const specLimit = limit - results.length;
+
+    for (const kw of specKeywords.slice(0, 6)) {
+        if (!kw || kw.length < 1 || results.length >= limit) break;
+        const batchSize = Math.max(3, Math.ceil(specLimit / Math.min(specKeywords.length, 6)));
+        const { data } = await supabase
+            .from('lead_to_cash_view')
+            .select('specification, copies, unit_price, total, customer_name, p_project_name, order_flg')
+            .ilike('specification', `%${kw}%`)
+            .not('total', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(batchSize);
+        if (data) {
+            for (const r of data) {
+                const key = `${r.specification}-${r.copies}-${r.total}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    results.push(mapRow(r, 'spec'));
+                }
+            }
+        }
+    }
+
+    return results.slice(0, limit);
+};
 
 export const getInventoryItems = async (): Promise<InventoryItem[]> => {
     const supabase = getSupabase();

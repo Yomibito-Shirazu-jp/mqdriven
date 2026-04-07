@@ -6,6 +6,7 @@ interface LeadKanbanViewProps {
   leads: Lead[];
   onUpdateLead: (leadId: string, updatedData: Partial<Lead>) => Promise<void>;
   onCardClick: (lead: Lead) => void;
+  orderedCustomerNames?: Set<string>;
 }
 
 const COLUMNS_ORDER: LeadStatus[] = [
@@ -18,7 +19,7 @@ const COLUMNS_ORDER: LeadStatus[] = [
     LeadStatus.Closed,
 ];
 
-const LeadCard: React.FC<{ lead: Lead; onClick: () => void; }> = ({ lead, onClick }) => {
+const LeadCard: React.FC<{ lead: Lead; onClick: () => void; isOrdered?: boolean; }> = ({ lead, onClick, isOrdered }) => {
     const handleDragStart = (e: React.DragEvent<HTMLDivElement>) => {
         e.dataTransfer.setData('leadId', lead.id);
         e.currentTarget.style.opacity = '0.4';
@@ -36,7 +37,14 @@ const LeadCard: React.FC<{ lead: Lead; onClick: () => void; }> = ({ lead, onClic
             onClick={onClick}
             className="bg-white dark:bg-slate-800 p-4 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 cursor-pointer hover:shadow-md hover:border-blue-500 dark:hover:border-blue-500 transition-all duration-200"
         >
-            <h4 className="font-bold text-slate-800 dark:text-white">{lead.company}</h4>
+            <div className="flex items-center gap-2">
+                <h4 className="font-bold text-slate-800 dark:text-white">{lead.company}</h4>
+                {isOrdered && (
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200">
+                        受注済
+                    </span>
+                )}
+            </div>
             <p className="text-sm text-slate-600 dark:text-slate-300">{lead.name}</p>
             <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                 <p className="text-xs text-slate-400">{lead.source}</p>
@@ -52,7 +60,8 @@ const KanbanColumn: React.FC<{
     leads: Lead[];
     onCardClick: (lead: Lead) => void;
     onDrop: (status: LeadStatus) => void;
-}> = ({ status, leads, onCardClick, onDrop }) => {
+    orderedCustomerNames?: Set<string>;
+}> = ({ status, leads, onCardClick, onDrop, orderedCustomerNames }) => {
     const [isDraggedOver, setIsDraggedOver] = useState(false);
 
     const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
@@ -83,14 +92,14 @@ const KanbanColumn: React.FC<{
             </div>
             <div className="space-y-3 h-full overflow-y-auto">
                 {leads.map(lead => (
-                    <LeadCard key={lead.id} lead={lead} onClick={() => onCardClick(lead)} />
+                    <LeadCard key={lead.id} lead={lead} onClick={() => onCardClick(lead)} isOrdered={orderedCustomerNames?.has(lead.company || '') ?? false} />
                 ))}
             </div>
         </div>
     );
 };
 
-const LeadKanbanView: React.FC<LeadKanbanViewProps> = ({ leads, onUpdateLead, onCardClick }) => {
+const LeadKanbanView: React.FC<LeadKanbanViewProps> = ({ leads, onUpdateLead, onCardClick, orderedCustomerNames }) => {
 
     const handleDrop = (newStatus: LeadStatus) => (e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -117,6 +126,7 @@ const LeadKanbanView: React.FC<LeadKanbanViewProps> = ({ leads, onUpdateLead, on
                     status={status}
                     leads={leadsByStatus[status]}
                     onCardClick={onCardClick}
+                    orderedCustomerNames={orderedCustomerNames}
                     onDrop={(newStatus) => {
                         // This seems complex, let's simplify. The onDrop should be on the column itself.
                         // Refactoring the onDrop handler.
@@ -135,7 +145,7 @@ const LeadKanbanView: React.FC<LeadKanbanViewProps> = ({ leads, onUpdateLead, on
 };
 
 // Simplified KanbanView without complex drag-n-drop state management
-const SimpleLeadKanbanView: React.FC<LeadKanbanViewProps> = ({ leads, onUpdateLead, onCardClick }) => {
+const SimpleLeadKanbanView: React.FC<LeadKanbanViewProps> = ({ leads, onUpdateLead, onCardClick, orderedCustomerNames }) => {
     
     const handleDropOnColumn = (e: React.DragEvent<HTMLDivElement>, newStatus: LeadStatus) => {
         e.preventDefault();
@@ -180,7 +190,7 @@ const SimpleLeadKanbanView: React.FC<LeadKanbanViewProps> = ({ leads, onUpdateLe
                     </div>
                     <div className="space-y-3 flex-grow overflow-y-auto pr-1">
                         {leadsByStatus[status].map(lead => (
-                            <LeadCard key={lead.id} lead={lead} onClick={() => onCardClick(lead)} />
+                            <LeadCard key={lead.id} lead={lead} onClick={() => onCardClick(lead)} isOrdered={orderedCustomerNames?.has(lead.company || '') ?? false} />
                         ))}
                     </div>
                 </div>

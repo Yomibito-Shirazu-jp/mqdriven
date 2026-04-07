@@ -7,6 +7,7 @@ import SMTPEmailService from '../../services/smtpEmailService';
 import { ApplicationWithDetails, ApplicationCode, EmployeeUser, Toast, Customer, AccountItem, Job, PurchaseOrder, Department, AllocationDivision, PaymentRecipient, DailyReportPrefill, AccountingStatus } from '../../types';
 import { Loader, AlertTriangle, Mail } from '../Icons';
 import { summarizeResubmissionLinks } from '../../utils/applicationResubmission';
+import { deriveApplicationAmount } from '../../utils';
 
 // Form components
 import ExpenseReimbursementForm from '../forms/ExpenseReimbursementForm';
@@ -129,46 +130,10 @@ const ApprovalWorkflowPage: React.FC<ApprovalWorkflowPageProps> = ({
     const [isCodesLoading, setIsCodesLoading] = useState(true);
 
     // --- Helpers: derive numeric amount per application for summaries ---
-    const deriveApplicationAmount = (app: ApplicationWithDetails): number | null => {
-        const data: any = app.formData || {};
-        const invoice = data.invoice || {};
-
-        const toNumber = (value: any): number | null => {
-            if (value === null || value === undefined) return null;
-            if (typeof value === 'number' && Number.isFinite(value)) return value;
-            if (typeof value === 'string') {
-                const normalized = value.replace(/,/g, '').trim();
-                if (!normalized) return null;
-                const parsed = Number(normalized);
-                if (!Number.isNaN(parsed) && Number.isFinite(parsed)) return parsed;
-            }
-            return null;
-        };
-
-        // 優先順位: amount > totalAmount > requestedAmount > その他
-        const amount = toNumber(data.amount);
-        if (amount !== null) return amount;
-        
-        const totalAmount = toNumber(data.totalAmount);
-        if (totalAmount !== null) return totalAmount;
-        
-        const requestedAmount = toNumber(data.requestedAmount);
-        if (requestedAmount !== null) return requestedAmount;
-
-        // その他の候補
-        const candidates = [
-            toNumber(data.estimatedAmount),
-            toNumber(invoice.totalGross),
-            toNumber(invoice.totalNet),
-        ].filter((v): v is number => v !== null);
-
-        if (candidates.length === 0) return null;
-        return candidates[0];
-    };
-
+    // Uses shared deriveApplicationAmount from utils.ts (single source of truth)
     const sumApplicationAmounts = (apps: ApplicationWithDetails[]): number => {
         return apps.reduce((sum, app) => {
-            const amount = deriveApplicationAmount(app);
+            const amount = deriveApplicationAmount(app.formData);
             return sum + (amount || 0);
         }, 0);
     };

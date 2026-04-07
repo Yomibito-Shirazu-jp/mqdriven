@@ -8,7 +8,11 @@
       "Bash(curl -s \"https://mqdriven.vercel.app/\")",
       "Bash(npx vercel domains ls)",
       "Bash(python3 -c \":*)",
-      "Bash(npx tsc --noEmit --skipLibCheck)"
+      "Bash(npx tsc --noEmit --skipLibCheck)",
+      "Bash(find /c/Users/ishij/Documents/GitHub/mqdriven/.claude/worktrees/dazzling-albattani -type f \\\\\\(-name *.ts -o -name *.tsx -o -name *.js -o -name *.jsx \\\\\\))",
+      "Bash(grep -r .amount /c/Users/ishij/Documents/GitHub/mqdriven/.claude/worktrees/dazzling-albattani --include=*.ts --include=*.tsx --include=*.js --include=*.jsx)",
+      "Bash(grep -r \"formatCurrency\\\\|formatJPY\" /c/Users/ishij/Documents/GitHub/mqdriven/.claude/worktrees/dazzling-albattani --include=*.ts --include=*.tsx --include=*.js --include=*.jsx)",
+      "Bash(grep -r \"\\\\.amount\\\\|\\\\.totalAmount\\\\|\\\\.requestedAmount\\\\|\\\\.totalGross\\\\|\\\\.totalNet\" /c/Users/ishij/Documents/GitHub/mqdriven/.claude/worktrees/dazzling-albattani --include=*.ts --include=*.tsx --include=*.js --include=*.jsx)"
     ]
   }
 }

@@ -483,6 +483,7 @@ const App: React.FC = () => {
     const [accountItems, setAccountItems] = useState<AccountItem[]>([]);
     const [paymentRecipients, setPaymentRecipients] = useState<PaymentRecipient[]>([]);
     const [leads, setLeads] = useState<Lead[]>([]);
+    const [orderedCustomerNames, setOrderedCustomerNames] = useState<Set<string>>(new Set());
     const [approvalRoutes, setApprovalRoutes] = useState<ApprovalRoute[]>([]);
     const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
     const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
@@ -1123,7 +1124,10 @@ const App: React.FC = () => {
             }
             if (journalResult.status === 'fulfilled') setJournalEntries(journalResult.value); else console.error('Failed to load journal entries:', journalResult.reason);
             if (accountItemsResult.status === 'fulfilled') setAccountItems(accountItemsResult.value); else console.error('Failed to load account items:', accountItemsResult.reason);
-            if (leadsResult.status === 'fulfilled') setLeads(leadsResult.value); else console.error('Failed to load leads:', leadsResult.reason);
+            if (leadsResult.status === 'fulfilled') {
+                setLeads(leadsResult.value);
+                dataService.getOrderedCustomerNames().then(setOrderedCustomerNames).catch(() => {});
+            } else console.error('Failed to load leads:', leadsResult.reason);
             if (routesResult.status === 'fulfilled') setApprovalRoutes(routesResult.value); else console.error('Failed to load approval routes:', routesResult.reason);
             if (poResult.status === 'fulfilled') setPurchaseOrders(poResult.value); else console.error('Failed to load purchase orders:', poResult.reason);
             if (inventoryResult.status === 'fulfilled') setInventoryItems(inventoryResult.value); else console.error('Failed to load inventory items:', inventoryResult.reason);
@@ -1431,6 +1435,8 @@ const App: React.FC = () => {
                         onRefresh={loadAllData}
                         onSelectJob={(job) => { setSelectedJob(job); setJobDetailModalOpen(true); }}
                         onNewJob={() => setCreateJobModalOpen(true)}
+                        addToast={addToast}
+                        currentUser={currentUser}
                     />
                 );
             case 'sales_customers':
@@ -1487,6 +1493,7 @@ const App: React.FC = () => {
                     onAddEstimate={handleAddEstimate}
                     customers={customers}
                     onNavigate={handleNavigate}
+                    orderedCustomerNames={orderedCustomerNames}
                     onCreateExistingCustomerLead={async (leadData) => {
                         await dataService.addLead(leadData);
                         await loadAllData();
@@ -1576,7 +1583,6 @@ const App: React.FC = () => {
                     customers={customers || []}
                     allUsers={allUsers || []}
                     onAddEstimate={handleAddEstimate}
-                    onShowAiEstimate={() => handleNavigate('simple_estimates')}
                     addToast={addToast}
                     currentUser={currentUser}
                     searchTerm={searchTerm}

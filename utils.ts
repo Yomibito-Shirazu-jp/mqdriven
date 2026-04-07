@@ -18,6 +18,92 @@ export const formatJPY = (amount: number | null | undefined): string => {
   return new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(Math.round(amount));
 };
 
+/**
+ * Safely convert any value to a finite number, or return null.
+ *
+ * This is the SINGLE source-of-truth numeric parser used by
+ * `deriveApplicationAmount`.  Every component that needs to extract a
+ * monetary value from application formData MUST call
+ * `deriveApplicationAmount` (below) instead of rolling its own parser.
+ */
+export const toFiniteNumber = (value: unknown): number | null => {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  if (typeof value === 'string') {
+    const normalized = value.replace(/,/g, '').trim();
+    if (!normalized) return null;
+    const parsed = Number(normalized);
+    return !Number.isNaN(parsed) && Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+/**
+ * ====================================================================
+ *  deriveApplicationAmount  –  唯一の金額取得関数
+ * ====================================================================
+ *
+ *  全画面（一覧・詳細・ダッシュボード・承認・会計）はこの関数だけを
+ *  使って申請金額を取得すること。ロジックを各コンポーネントにコピー
+ *  しないこと！
+ *
+ *  経費精算 (EXP) フォームは金額を formData.invoice.totalGross に
+ *  保存するため、トップレベルの amount / totalAmount だけでは不十分。
+ *
+ *  優先順:
+ *    1. data.amount
+ *    2. data.totalAmount
+ *    3. data.requestedAmount
+ *    4. data.estimatedAmount
+ *    5. data.invoice.totalGross   ← 経費精算はここに入る
+ *    6. data.invoice.totalNet
+ *    7. data.invoice.totalAmount
+ *    8. data.invoice.total
+ *    9. sum(data.details[].amount)
+ *   10. sum(data.invoice.lines[].amountExclTax ?? .amount)
+ * ====================================================================
+ */
+export const deriveApplicationAmount = (formData: any): number | null => {
+  const data: Record<string, any> = formData && typeof formData === 'object' ? formData : {};
+  const invoice: Record<string, any> = data.invoice && typeof data.invoice === 'object' ? data.invoice : {};
+
+  // --- scalar candidates (first non-null wins) ---
+  const scalars = [
+    toFiniteNumber(data.amount),
+    toFiniteNumber(data.totalAmount),
+    toFiniteNumber(data.requestedAmount),
+    toFiniteNumber(data.estimatedAmount),
+    toFiniteNumber(invoice.totalGross),
+    toFiniteNumber(invoice.totalNet),
+    toFiniteNumber(invoice.totalAmount),
+    toFiniteNumber(invoice.total),
+  ];
+
+  for (const v of scalars) {
+    if (v !== null) return v;
+  }
+
+  // --- array sums as last resort ---
+  const sumArray = (items: unknown[], key: string, altKey?: string): number | null => {
+    if (!Array.isArray(items) || items.length === 0) return null;
+    let total = 0;
+    let found = false;
+    for (const item of items) {
+      if (!item || typeof item !== 'object') continue;
+      const rec = item as Record<string, any>;
+      const n = toFiniteNumber(rec[key]) ?? (altKey ? toFiniteNumber(rec[altKey]) : null);
+      if (n !== null) { total += n; found = true; }
+    }
+    return found && total > 0 ? total : null;
+  };
+
+  return (
+    sumArray(data.details, 'amount') ??
+    sumArray(invoice.lines, 'amountExclTax', 'amount') ??
+    null
+  );
+};
+
 export const parseDateSafe = (input: string | Date | null | undefined): Date | null => {
   if (!input) return null;
   if (input instanceof Date) {

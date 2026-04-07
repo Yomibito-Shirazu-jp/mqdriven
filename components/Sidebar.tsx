@@ -39,8 +39,8 @@ const BASE_NAV_CATEGORIES: NavCategoryType[] = [
       { page: 'sales_leads', name: 'リード管理' },
       { page: 'sales_customers', name: '取引先Master' },
       { page: 'sales_customers_chart', name: '顧客カルテ/ランキング分析' },
-      { page: 'sales_estimates', name: '見積履歴' },
-      { page: 'detailed_estimate', name: '戦略見積作成(MQ)', icon: Calculator },
+      { page: 'sales_estimates', name: '見積管理' },
+      { page: 'sales_orders', name: '受注管理' },
     ],
   },
   {
