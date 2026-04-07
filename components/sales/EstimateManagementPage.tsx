@@ -1226,16 +1226,25 @@ const EstimateManagementPage: React.FC<EstimateManagementPageProps> = ({
                                                 </td>
                                                 <td className="py-3 px-4 text-right">{formatJPY(Number(estimate.total) || 0)}</td>
                                                 <td className="py-3 px-4">
-                                                    <span className={`px-2 py-1 rounded-full text-xs font-semibold ${estimate.status === 'draft' ? 'bg-gray-100 text-gray-700' :
-                                                        estimate.status === 'sent' ? 'bg-blue-100 text-blue-700' :
-                                                            estimate.status === 'approved' ? 'bg-green-100 text-green-700' :
-                                                                'bg-slate-100 text-slate-700'
-                                                        }`}>
-                                                        {estimate.status === 'draft' ? '見積中' :
-                                                            estimate.status === 'sent' ? '送付済' :
-                                                                estimate.status === 'approved' ? '承認済' :
-                                                                    estimate.status}
-                                                    </span>
+                                                    {(() => {
+                                                        const s = String(estimate.status || '0').toLowerCase();
+                                                        const map: Record<string, { label: string; cls: string }> = {
+                                                            '0': { label: '見積中', cls: 'bg-gray-100 text-gray-700' },
+                                                            'draft': { label: '見積中', cls: 'bg-gray-100 text-gray-700' },
+                                                            '見積中': { label: '見積中', cls: 'bg-gray-100 text-gray-700' },
+                                                            '1': { label: '送付済', cls: 'bg-blue-100 text-blue-700' },
+                                                            'sent': { label: '送付済', cls: 'bg-blue-100 text-blue-700' },
+                                                            '2': { label: '受注', cls: 'bg-green-100 text-green-700' },
+                                                            'ordered': { label: '受注', cls: 'bg-green-100 text-green-700' },
+                                                            '受注': { label: '受注', cls: 'bg-green-100 text-green-700' },
+                                                            'approved': { label: '承認済', cls: 'bg-emerald-100 text-emerald-700' },
+                                                            '9': { label: '失注', cls: 'bg-red-100 text-red-700' },
+                                                            'lost': { label: '失注', cls: 'bg-red-100 text-red-700' },
+                                                            '失注': { label: '失注', cls: 'bg-red-100 text-red-700' },
+                                                        };
+                                                        const info = map[s] || { label: s || '-', cls: 'bg-slate-100 text-slate-700' };
+                                                        return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${info.cls}`}>{info.label}</span>;
+                                                    })()}
                                                 </td>
                                                 <td className="py-3 px-4">{formatDate(estimate.created_at)}</td>
                                                 <td className="py-3 px-4">

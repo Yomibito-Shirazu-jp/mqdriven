@@ -4042,11 +4042,14 @@ const mapEstimateRow = (row: any): Estimate => {
     const detailCount = toNumberOrNull(row.detail_count);
 
     // Project and customer names
-    const projectName = toStringOrNull(row.project_name) || toStringOrNull(row.pattern_name);
-    const customerName = toStringOrNull(row.customers?.customer_name) || toStringOrNull(row.customer_name) || projectName || `顧客${row.estimates_id || row.id || ''}`;
+    const projectName = toStringOrNull(row.project_name) || toStringOrNull(row.pattern_name) || toStringOrNull(row.p_project_name);
+    const rawCustomerName = toStringOrNull(row.customers?.customer_name) || toStringOrNull(row.customer_name) || toStringOrNull(row.customer_display_name);
+    const customerName = (rawCustomerName && rawCustomerName !== '不明') ? rawCustomerName : (projectName || '（顧客未設定）');
 
-    // Display name
-    const displayName = projectName || toStringOrNull(row.specification) || `隕狗ｩ・${row.estimates_id || row.id}`;
+    // Display name — specificationが長文の場合は先頭50文字に切り詰め
+    const rawSpec = toStringOrNull(row.specification) || '';
+    const specShort = rawSpec.length > 50 ? rawSpec.slice(0, 50) + '…' : rawSpec;
+    const displayName = projectName || specShort || `見積${row.estimates_id || row.id}`;
 
     // Dates
     const createdAt = toStringOrNull(row.created_at) || toStringOrNull(row.create_date) || new Date().toISOString();
