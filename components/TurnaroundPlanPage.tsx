@@ -60,7 +60,7 @@ const TurnaroundPlanPage: React.FC = () => {
   const [kpis, setKpis] = React.useState<KpiTarget[]>([]);
   const [recoveryTargets, setRecoveryTargets] = React.useState<RecoveryTarget[]>([]);
   const [loading, setLoading] = React.useState(true);
-  const [activeTab, setActiveTab] = React.useState<'overview' | 'kpi' | 'recovery'>('overview');
+  const [activeTab, setActiveTab] = React.useState<'overview' | 'kpi' | 'recovery' | 'report'>('overview');
   const [editingKpi, setEditingKpi] = React.useState<string | null>(null);
   const [editingRecovery, setEditingRecovery] = React.useState<string | null>(null);
 
@@ -180,7 +180,7 @@ const TurnaroundPlanPage: React.FC = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-slate-100 rounded-xl p-1">
-        {([['overview', '概要'], ['kpi', 'KPI目標'], ['recovery', '顧客奪還']] as const).map(([key, label]) => (
+        {([['overview', '概要'], ['kpi', 'KPI目標'], ['recovery', '顧客奪還'], ['report', '📊 社長報告書']] as const).map(([key, label]) => (
           <button
             key={key}
             onClick={() => setActiveTab(key)}
@@ -341,6 +341,18 @@ const TurnaroundPlanPage: React.FC = () => {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Report Tab - Full HTML Report */}
+      {activeTab === 'report' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden" style={{ height: 'calc(100vh - 280px)' }}>
+          <iframe
+            src="/turnaround-report.html"
+            title="起死回生プラン 社長報告書"
+            className="w-full h-full border-0"
+            sandbox="allow-scripts allow-same-origin"
+          />
         </div>
       )}
 
