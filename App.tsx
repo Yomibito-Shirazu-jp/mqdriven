@@ -1583,7 +1583,6 @@ const App: React.FC = () => {
                     customers={customers || []}
                     allUsers={allUsers || []}
                     onAddEstimate={handleAddEstimate}
-                    onShowAiEstimate={() => handleNavigate('simple_estimates')}
                     addToast={addToast}
                     currentUser={currentUser}
                     searchTerm={searchTerm}

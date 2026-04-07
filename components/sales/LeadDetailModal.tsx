@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Lead, LeadStatus, Toast, ConfirmationDialogProps, EmployeeUser, Estimate, EstimateStatus } from '../../types';
 import { X, Pencil, Mail, CheckCircle, Lightbulb, Search, Loader, Send } from '../Icons';
-import { generateLeadReplyEmail } from '../../services/geminiService';
+import { generateLeadReplyEmail, extractPrintSpecKeywords, draftEstimateFromLeadWithHistory } from '../../services/geminiService';
 import { sendEmail } from '../../services/emailService';
+import { findSimilarEstimates } from '../../services/dataService';
 
 interface LeadDetailModalProps {
     isOpen: boolean;
@@ -53,6 +54,64 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
     const [estDeliveryDate, setEstDeliveryDate] = useState('');
     const [estExpirationDate, setEstExpirationDate] = useState('');
     const [isCreatingEstimate, setIsCreatingEstimate] = useState(false);
+    const [isAiEstimating, setIsAiEstimating] = useState(false);
+    const [similarCount, setSimilarCount] = useState<number | null>(null);
+
+    // AI自動見積生成（3段階: キーワード抽出 → DB検索 → AI見積生成）
+    const handleAiAutoEstimate = async () => {
+        if (!lead || isAIOff) return;
+        setIsAiEstimating(true);
+        setSimilarCount(null);
+        try {
+            // Step 1: AIが問い合わせ文から印刷仕様キーワードを抽出
+            const inquiryText = `${lead.message || ''}\n${lead.inquiryType || ''}\n${lead.printTypes || ''}`;
+            const specKeywords = await extractPrintSpecKeywords(inquiryText);
+
+            // Step 2: キーワード＋顧客名で過去見積を検索
+            const similar = await findSimilarEstimates(specKeywords, lead.company || undefined);
+            setSimilarCount(similar.length);
+
+            // Step 3: 過去データをコンテキストにAI見積を生成
+            const aiResult = await draftEstimateFromLeadWithHistory(lead, similar);
+
+            // フォームに反映
+            const items = (aiResult.items || []) as Array<{ division?: string; content?: string; quantity?: number; unit?: string; unitPrice?: number; price?: number; cost?: number }>;
+            if (aiResult.title) setEstTitle(aiResult.title);
+
+            // 明細の合計金額を算出してフォームの単価・数量に設定
+            const itemsTotal = items.reduce((sum, item) => sum + (item.price || 0), 0);
+            if (itemsTotal > 0) {
+                // 明細が複数ある → 合計を単価、数量1（見積フォームが単一行のため）
+                setEstUnitPrice(itemsTotal);
+                setEstCopies(1);
+            } else if (items.length > 0) {
+                // price が 0 でも quantity/unitPrice があるケース
+                const first = items[0];
+                setEstCopies(first.quantity || 1);
+                setEstUnitPrice(first.unitPrice || 0);
+            }
+
+            // 明細を仕様テキストとして展開
+            const specLines = items.map(item =>
+                `【${item.division || 'その他'}】${item.content || ''}\n  ${item.quantity || 0}${item.unit || '式'} × ¥${(item.unitPrice || 0).toLocaleString()} = ¥${(item.price || 0).toLocaleString()}`
+            );
+            const specText = specLines.join('\n\n');
+            const notesText = aiResult.notes ? `\n\n備考: ${aiResult.notes}` : '';
+            const customerHint = similar.filter(e => e.match_type === 'customer').length;
+            const specHint = similar.filter(e => e.match_type === 'spec').length;
+            const refNote = `\n\n--- 参照実績 ---\n同一顧客: ${customerHint}件 / 仕様類似: ${specHint}件`;
+            setEstSpec(specText + notesText + refNote);
+
+            if (aiResult.deliveryDate) setEstDeliveryDate(aiResult.deliveryDate);
+
+            addToast(`過去${similar.length}件の実績を参照（キーワード: ${specKeywords.slice(0, 4).join(', ')}）`, 'success');
+        } catch (err: any) {
+            console.error('AI自動見積エラー:', err);
+            addToast(err?.message || 'AI見積の生成に失敗しました。', 'error');
+        } finally {
+            setIsAiEstimating(false);
+        }
+    };
 
     // リードが変わったら見積フォームを初期化
     useEffect(() => {
@@ -410,6 +469,23 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
 
                                 {activeAiTab === 'proposal' && (
                                     <div className="space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={handleAiAutoEstimate}
+                                                disabled={isAiEstimating || isAIOff}
+                                                className="flex-1 flex items-center justify-center gap-2 bg-gradient-to-r from-violet-600 to-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg hover:from-violet-700 hover:to-blue-700 disabled:opacity-50 transition shadow-sm"
+                                            >
+                                                {isAiEstimating
+                                                    ? <><Loader className="w-4 h-4 animate-spin" />過去データを参照中...</>
+                                                    : <><Lightbulb className="w-4 h-4" />AI自動見積（過去実績参照）</>
+                                                }
+                                            </button>
+                                        </div>
+                                        {similarCount !== null && (
+                                            <div className="text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-md">
+                                                過去 {similarCount} 件の類似実績を参照して生成しました
+                                            </div>
+                                        )}
                                         <div>
                                             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">件名</label>
                                             <input type="text" value={estTitle} onChange={e => setEstTitle(e.target.value)}
@@ -446,8 +522,8 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                                         </div>
                                         <div>
                                             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">仕様 / 備考</label>
-                                            <textarea value={estSpec} onChange={e => setEstSpec(e.target.value)} rows={3}
-                                                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm" />
+                                            <textarea value={estSpec} onChange={e => setEstSpec(e.target.value)} rows={8}
+                                                className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm font-mono leading-relaxed" />
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
                                             <div>
@@ -461,13 +537,54 @@ export const LeadDetailModal: React.FC<LeadDetailModalProps> = ({
                                                     className="w-full rounded-md border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm" />
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={handleCreateEstimate}
-                                            disabled={isCreatingEstimate || !estTitle.trim() || !onAddEstimate}
-                                            className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
-                                        >
-                                            {isCreatingEstimate ? <><Loader className="w-4 h-4 animate-spin" />作成中...</> : <><Lightbulb className="w-4 h-4" />見積を作成</>}
-                                        </button>
+                                        <div className="flex gap-2 pt-1">
+                                            <button
+                                                onClick={handleCreateEstimate}
+                                                disabled={isCreatingEstimate || !estTitle.trim() || !onAddEstimate}
+                                                className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+                                            >
+                                                {isCreatingEstimate ? <><Loader className="w-4 h-4 animate-spin" />作成中...</> : <><CheckCircle className="w-4 h-4" />この内容で見積作成</>}
+                                            </button>
+                                            <button
+                                                onClick={handleAiAutoEstimate}
+                                                disabled={isAiEstimating || isAIOff}
+                                                className="flex items-center gap-1 bg-slate-200 dark:bg-slate-600 text-slate-700 dark:text-slate-300 font-semibold py-2.5 px-3 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-500 disabled:opacity-50 transition"
+                                                title="AIで再生成"
+                                            >
+                                                {isAiEstimating ? <Loader className="w-4 h-4 animate-spin" /> : <Lightbulb className="w-4 h-4" />}
+                                            </button>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    setEstTitle('');
+                                                    setEstCustomer(lead.company || '');
+                                                    setEstCopies(1);
+                                                    setEstUnitPrice(0);
+                                                    setEstSpec('');
+                                                    setEstDeliveryDate('');
+                                                    setSimilarCount(null);
+                                                }}
+                                                className="flex-1 flex items-center justify-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 py-2 rounded-lg border border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                                            >
+                                                リセット
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    onSave(lead.id, {
+                                                        status: LeadStatus.Disqualified,
+                                                        updatedAt: new Date().toISOString(),
+                                                        infoSalesActivity: `[${new Date().toLocaleString('ja-JP')}] 見積提案を却下しました。\n${lead.infoSalesActivity || ''}`.trim(),
+                                                    });
+                                                    addToast('この案件を失注にしました。', 'info');
+                                                    onClose();
+                                                }}
+                                                className="flex-1 flex items-center justify-center gap-2 text-sm text-rose-500 dark:text-rose-400 hover:text-rose-700 dark:hover:text-rose-200 py-2 rounded-lg border border-rose-200 dark:border-rose-700 hover:bg-rose-50 dark:hover:bg-rose-900/30 transition"
+                                            >
+                                                <X className="w-3 h-3" />
+                                                この案件を却下
+                                            </button>
+                                        </div>
                                     </div>
                                 )}
 
