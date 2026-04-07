@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Loader } from 'lucide-react';
-import { getTrialBalanceData } from '../../services/dataService';
+import { getTrialBalanceData, getGeneralLedgerLinesForAccount } from '../../services/dataService';
 
 const CATEGORY_ORDER: Record<string, number> = {
   ASSETS: 0,
@@ -30,6 +30,9 @@ const TrialBalancePage: React.FC = () => {
   const [data, setData] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedCode, setExpandedCode] = useState<string | null>(null);
+  const [expandedLines, setExpandedLines] = useState<any[]>([]);
+  const [expandedLoading, setExpandedLoading] = useState(false);
   const [period, setPeriod] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${(today.getMonth() + 1).toString().padStart(2, '0')}`;
@@ -91,6 +94,29 @@ const TrialBalancePage: React.FC = () => {
     };
   }, [data]);
 
+  const handleAccountClick = async (code: string) => {
+    if (expandedCode === code) {
+      setExpandedCode(null);
+      setExpandedLines([]);
+      return;
+    }
+    setExpandedCode(code);
+    setExpandedLoading(true);
+    try {
+      const [year, month] = period.split('-').map(Number);
+      const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+      const endOfMonth = new Date(year, month, 0);
+      const endDate = `${endOfMonth.getFullYear()}-${(endOfMonth.getMonth() + 1).toString().padStart(2, '0')}-${endOfMonth.getDate().toString().padStart(2, '0')}`;
+      const lines = await getGeneralLedgerLinesForAccount(code, startDate, endDate);
+      setExpandedLines(lines);
+    } catch (err) {
+      console.error('Failed to fetch account lines:', err);
+      setExpandedLines([]);
+    } finally {
+      setExpandedLoading(false);
+    }
+  };
+
   const shiftMonth = (delta: number) => {
     const [y, m] = period.split('-').map(Number);
     const d = new Date(y, m - 1 + delta, 1);
@@ -138,15 +164,57 @@ const TrialBalancePage: React.FC = () => {
                       {CATEGORY_LABELS[section] || section}
                     </td>
                   </tr>
-                  {rows.map((row: any, i: number) => (
-                    <tr key={`${section}-${i}`} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-500">{row.code}</td>
-                      <td className="px-4 py-3 text-gray-700">{row.name}</td>
-                      <td className="px-4 py-3 text-right text-gray-700">{row.debit > 0 ? `¥${row.debit.toLocaleString()}` : ''}</td>
-                      <td className="px-4 py-3 text-right text-gray-700">{row.credit > 0 ? `¥${row.credit.toLocaleString()}` : ''}</td>
-                      <td className="px-4 py-3 text-right text-gray-800 font-medium">{row.balance !== 0 ? `¥${row.balance.toLocaleString()}` : ''}</td>
-                    </tr>
-                  ))}
+                  {rows.map((row: any, i: number) => {
+                    const isExpanded = expandedCode === row.code;
+                    return (
+                      <React.Fragment key={`${section}-${i}`}>
+                        <tr
+                          onClick={() => row.code && handleAccountClick(row.code)}
+                          className={`border-b border-gray-100 hover:bg-blue-50 transition-colors cursor-pointer ${isExpanded ? 'bg-blue-50' : ''}`}
+                        >
+                          <td className="px-4 py-3 text-blue-600 font-medium">{row.code}</td>
+                          <td className="px-4 py-3 text-gray-700">{row.name}</td>
+                          <td className="px-4 py-3 text-right text-gray-700">{row.debit > 0 ? `¥${row.debit.toLocaleString()}` : ''}</td>
+                          <td className="px-4 py-3 text-right text-gray-700">{row.credit > 0 ? `¥${row.credit.toLocaleString()}` : ''}</td>
+                          <td className="px-4 py-3 text-right text-gray-800 font-medium">{row.balance !== 0 ? `¥${row.balance.toLocaleString()}` : ''}</td>
+                        </tr>
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={5} className="px-4 py-3 bg-slate-50 border-b border-slate-200">
+                              {expandedLoading ? (
+                                <div className="flex items-center gap-2 py-2 text-sm text-slate-500"><Loader className="w-4 h-4 animate-spin" />読み込み中...</div>
+                              ) : expandedLines.length === 0 ? (
+                                <div className="text-sm text-slate-400 py-2">この期間の仕訳明細はありません</div>
+                              ) : (
+                                <div className="max-h-64 overflow-y-auto">
+                                  <table className="w-full text-xs">
+                                    <thead className="bg-slate-100 sticky top-0">
+                                      <tr>
+                                        <th className="px-3 py-2 text-left font-semibold text-slate-600">日付</th>
+                                        <th className="px-3 py-2 text-left font-semibold text-slate-600">摘要</th>
+                                        <th className="px-3 py-2 text-right font-semibold text-slate-600">借方</th>
+                                        <th className="px-3 py-2 text-right font-semibold text-slate-600">貸方</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {expandedLines.map((line: any, li: number) => (
+                                        <tr key={li} className="border-t border-slate-100 hover:bg-white">
+                                          <td className="px-3 py-1.5 text-slate-600 font-mono">{String(line.date || line.entry_date || '').split('T')[0]}</td>
+                                          <td className="px-3 py-1.5 text-slate-700">{line.description || line.entry_description || '-'}</td>
+                                          <td className="px-3 py-1.5 text-right font-mono text-slate-700">{Number(line.debit || line.debit_amount || 0) > 0 ? `¥${Number(line.debit || line.debit_amount).toLocaleString()}` : ''}</td>
+                                          <td className="px-3 py-1.5 text-right font-mono text-slate-700">{Number(line.credit || line.credit_amount || 0) > 0 ? `¥${Number(line.credit || line.credit_amount).toLocaleString()}` : ''}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
                 </React.Fragment>
               ))}
             </tbody>
