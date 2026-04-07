@@ -4997,7 +4997,19 @@ export const addInboxItem = async (item: Omit<InboxItem, 'id' | 'createdAt' | 'f
         extracted_data: item.extractedData, error_message: item.errorMessage,
     }).select().single();
     ensureSupabaseSuccess(error, 'Failed to add inbox item');
-    return data as InboxItem;
+
+    const { data: urlData } = supabase.storage.from('inbox').getPublicUrl(data.file_path);
+    return {
+        id: data.id,
+        fileName: data.file_name,
+        filePath: data.file_path,
+        fileUrl: urlData?.publicUrl || '',
+        mimeType: data.mime_type,
+        status: data.status,
+        extractedData: data.extracted_data,
+        errorMessage: data.error_message,
+        createdAt: data.created_at,
+    };
 };
 
 export const updateInboxItem = async (id: string, updates: Partial<InboxItem>): Promise<InboxItem> => {
@@ -5008,7 +5020,17 @@ export const updateInboxItem = async (id: string, updates: Partial<InboxItem>): 
     ensureSupabaseSuccess(error, 'Failed to update inbox item');
 
     const { data: urlData } = supabase.storage.from('inbox').getPublicUrl(data.file_path);
-    return { ...data, fileUrl: urlData.publicUrl, extractedData: data.extracted_data } as InboxItem;
+    return {
+        id: data.id,
+        fileName: data.file_name,
+        filePath: data.file_path,
+        fileUrl: urlData?.publicUrl || '',
+        mimeType: data.mime_type,
+        status: data.status,
+        extractedData: data.extracted_data,
+        errorMessage: data.error_message,
+        createdAt: data.created_at,
+    };
 };
 
 export const deleteInboxItem = async (itemToDelete: InboxItem): Promise<void> => {

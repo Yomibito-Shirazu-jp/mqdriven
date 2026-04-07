@@ -104,6 +104,88 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
     return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   };
 
+  const toNonEmptyText = (value: unknown): string => {
+    if (typeof value !== 'string') return '';
+    return value.trim();
+  };
+
+  const formatFallbackObject = (value: unknown): string => {
+    if (!value || typeof value !== 'object') return '';
+    try {
+      return JSON.stringify(value, null, 2);
+    } catch {
+      return '';
+    }
+  };
+
+  const deriveApplicationContent = (app: ApplicationWithDetails): string => {
+    const data: any = app.formData ?? {};
+    const detailsText =
+      typeof data.details === 'string'
+        ? data.details
+        : Array.isArray(data.details)
+          ? data.details
+              .map((detail: any) =>
+                toNonEmptyText(
+                  detail?.description ??
+                    detail?.content ??
+                    detail?.memo ??
+                    detail?.purpose ??
+                    detail?.title,
+                ),
+              )
+              .filter(Boolean)
+              .join('\n')
+          : '';
+    const candidates = [
+      detailsText,
+      toNonEmptyText(data.notes),
+      toNonEmptyText(data.reason),
+      toNonEmptyText(data.title),
+      toNonEmptyText(data.subject),
+      toNonEmptyText(data.invoice?.description),
+      toNonEmptyText(data.invoice?.supplierName),
+      toNonEmptyText(data.invoice?.sourceFile?.name),
+    ];
+    const hit = candidates.find(Boolean);
+    if (hit) return hit;
+    return formatFallbackObject(data);
+  };
+
+  const deriveLineDescription = (line: any): string => {
+    const candidates = [
+      line?.description,
+      line?.itemName,
+      line?.item,
+      line?.content,
+      line?.summary,
+      line?.memo,
+      line?.purpose,
+      line?.title,
+      line?.name,
+    ];
+    for (const candidate of candidates) {
+      const text = toNonEmptyText(candidate);
+      if (text) return text;
+    }
+    return formatFallbackObject(line);
+  };
+
+  const deriveLineSubLabel = (line: any): string => {
+    const candidates = [
+      line?.projectName,
+      line?.customerName,
+      line?.departmentName,
+      line?.lineDate,
+      line?.travelDate,
+    ];
+    for (const candidate of candidates) {
+      const text = toNonEmptyText(candidate);
+      if (text) return text;
+    }
+    return '補足情報なし';
+  };
+
   // Amount extraction uses shared deriveApplicationAmount from utils.ts
   const deriveAmount = (app: ApplicationWithDetails): number | null => {
     return deriveApplicationAmount(app.formData);
@@ -290,6 +372,7 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
     setBulkAiRunning(true);
     setBulkAiProgress({ done: 0, total: targets.length, errors: 0 });
     let errors = 0;
+    const failedReasons: string[] = [];
     const BATCH = 2;
     for (let i = 0; i < targets.length; i += BATCH) {
       const batch = targets.slice(i, i + BATCH);
@@ -301,7 +384,11 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
           const debitId = resolveAccountId(suggestion.debitAccount);
           const creditId = resolveAccountId(suggestion.creditAccount);
           const amount = deriveAmount(app);
-          if (!debitId || !creditId || !amount || amount <= 0) throw new Error('勘定科目未解決');
+          if (!debitId || !creditId || !amount || amount <= 0) {
+            throw new Error(
+              `勘定科目/金額未解決（借方:${suggestion.debitAccount || '-'} 貸方:${suggestion.creditAccount || '-'} 金額:${amount ?? '-'}）`
+            );
+          }
           await dataService.createJournalFromAiSelection({
             applicationId: app.id,
             debitAccountId: debitId,
@@ -316,13 +403,28 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
         })
       );
       const batchErrors = results.filter(r => r.status === 'rejected').length;
+      results.forEach(result => {
+        if (result.status === 'rejected') {
+          const reason =
+            result.reason instanceof Error
+              ? result.reason.message
+              : typeof result.reason === 'string'
+                ? result.reason
+                : '不明なエラー';
+          if (failedReasons.length < 3) {
+            failedReasons.push(reason);
+          }
+        }
+      });
       errors += batchErrors;
       setBulkAiProgress(prev => ({ ...prev, done: Math.min(i + BATCH, targets.length), errors }));
     }
     setBulkAiRunning(false);
     await loadApprovedApplications(true);
     notify?.(
-      `AI仕訳提案完了: ${targets.length - errors}件成功${errors > 0 ? `、${errors}件失敗` : ''}`,
+      `AI仕訳提案完了: ${targets.length - errors}件成功${errors > 0 ? `、${errors}件失敗` : ''}${
+        failedReasons.length > 0 ? `（例: ${failedReasons.join(' / ')}）` : ''
+      }`,
       errors > 0 ? 'info' : 'success'
     );
   }, [accountItems, applications, buildSuggestionPrompt, buildTitle, currentUserId, deriveAmount, loadApprovedApplications, notify, resolveAccountId]);
@@ -780,16 +882,16 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
           >
             <div className="flex items-start justify-between gap-4 p-5 border-b border-slate-200 dark:border-slate-700">
               <div className="min-w-0">
-                <p className="text-xs text-slate-500 dark:text-slate-400">仕訳</p>
-                <h3 className="text-lg md:text-xl font-bold text-slate-900 dark:text-white truncate">
+                <p className="text-sm text-slate-600 dark:text-slate-300">仕訳</p>
+                <h3 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white truncate">
                   {buildTitle(selectedApplication)}
                 </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-300">
+                <p className="text-base text-slate-700 dark:text-slate-200">
                   {selectedApplication.application_code?.name || '種別未設定'} / {selectedApplication.applicant?.name || '申請者未設定'}
                 </p>
                 <div className="mt-3">
                   <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getAccountingStatusBadgeClass(
+                    className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${getAccountingStatusBadgeClass(
                       selectedApplicationStatus
                     )}`}
                   >
@@ -814,8 +916,8 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                 <div className="rounded-lg border border-amber-200 dark:border-amber-700/50 p-4 bg-amber-50/60 dark:bg-amber-900/20">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">📋 ルールベース提案（過去の仕訳実績から）</p>
-                      <p className="text-sm text-amber-800/80 dark:text-amber-300/80">
+                      <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">📋 ルールベース提案（過去の仕訳実績から）</p>
+                      <p className="text-base text-amber-800/80 dark:text-amber-300/80">
                         {appliedRule.matchType === 'code_and_supplier'
                           ? `同じ種別＋支払先の確定済み仕訳 ${appliedRule.matchCount}件から自動セット`
                           : `同じ種別の確定済み仕訳 ${appliedRule.matchCount}件から自動セット`}
@@ -824,14 +926,14 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                   </div>
                   <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <p className="text-xs font-semibold text-amber-700/70 dark:text-amber-400/70 mb-0.5">借方</p>
-                      <p className="text-sm text-amber-900 dark:text-amber-200 font-medium">
+                      <p className="text-sm font-semibold text-amber-700/70 dark:text-amber-400/70 mb-0.5">借方</p>
+                      <p className="text-base text-amber-900 dark:text-amber-200 font-medium">
                         {appliedRule.debitAccountCode} {appliedRule.debitAccountName || '—'}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-amber-700/70 dark:text-amber-400/70 mb-0.5">貸方</p>
-                      <p className="text-sm text-amber-900 dark:text-amber-200 font-medium">
+                      <p className="text-sm font-semibold text-amber-700/70 dark:text-amber-400/70 mb-0.5">貸方</p>
+                      <p className="text-base text-amber-900 dark:text-amber-200 font-medium">
                         {appliedRule.creditAccountCode} {appliedRule.creditAccountName || '—'}
                       </p>
                     </div>
@@ -842,13 +944,13 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
               <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 bg-white dark:bg-slate-900/40">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">AI仕訳提案</p>
-                    <p className="text-sm text-slate-600 dark:text-slate-300">
+                    <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">AI仕訳提案</p>
+                    <p className="text-base text-slate-700 dark:text-slate-200">
                       {appliedRule ? 'ルール提案が適用中です。AIで別の提案を試す場合は再提案してください。' : '内容と振り分け先をAIが提案します。'}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+                    <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
                       <input
                         type="checkbox"
                         checked={isAiAutoSuggest}
@@ -860,7 +962,7 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                       type="button"
                       onClick={handleAiSuggest}
                       disabled={isAiLoading}
-                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800 disabled:opacity-50"
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 disabled:opacity-50"
                     >
                       {isAiLoading ? <Loader className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                       再提案
@@ -875,11 +977,11 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                 <div className="mt-4 space-y-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">借方勘定科目</p>
+                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1">借方勘定科目</p>
                       <select
                         value={selectedDebitAccountId}
                         onChange={(e) => setSelectedDebitAccountId(e.target.value)}
-                        className="w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40 px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
+                        className="w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40 px-3 py-2 text-base text-slate-800 dark:text-slate-100"
                       >
                         <option value="">未選択</option>
                         {accountItems.map(item => (
@@ -890,11 +992,11 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                       </select>
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">貸方勘定科目</p>
+                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1">貸方勘定科目</p>
                       <select
                         value={selectedCreditAccountId}
                         onChange={(e) => setSelectedCreditAccountId(e.target.value)}
-                        className="w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40 px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
+                        className="w-full rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900/40 px-3 py-2 text-base text-slate-800 dark:text-slate-100"
                       >
                         <option value="">未選択</option>
                         {accountItems.map(item => (
@@ -909,61 +1011,58 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                   {aiSuggestion ? (
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div>
-                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">AI提案（借方）</p>
-                        <p className="text-sm text-slate-800 dark:text-slate-100">
+                        <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1">AI提案（借方）</p>
+                        <p className="text-base text-slate-900 dark:text-slate-100">
                           {aiSuggestion.debitAccount || '未提案'}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">AI提案（貸方）</p>
-                        <p className="text-sm text-slate-800 dark:text-slate-100">
+                        <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1">AI提案（貸方）</p>
+                        <p className="text-base text-slate-900 dark:text-slate-100">
                           {aiSuggestion.creditAccount || '未提案'}
                         </p>
                       </div>
                       <div>
-                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">金額</p>
-                        <p className="text-sm font-mono font-semibold text-slate-800 dark:text-slate-100">
+                        <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1">金額</p>
+                        <p className="text-base font-mono font-semibold text-slate-900 dark:text-slate-100">
                           {typeof aiSuggestion.amount === 'number' ? formatCurrency(aiSuggestion.amount) : '-'}
                         </p>
                       </div>
                     </div>
                   ) : (
-                    <div className="text-sm text-slate-500 dark:text-slate-400">AI提案は未取得です。</div>
+                    <div className="text-base text-slate-600 dark:text-slate-300">AI提案は未取得です。</div>
                   )}
 
                   {aiSuggestion?.reasoning ? (
                     <div>
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">根拠</p>
-                      <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{aiSuggestion.reasoning}</p>
+                      <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-1">根拠</p>
+                      <p className="text-base text-slate-700 dark:text-slate-200 whitespace-pre-wrap">{aiSuggestion.reasoning}</p>
                     </div>
                   ) : null}
                 </div>
               </div>
 
               <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 bg-slate-50 dark:bg-slate-900/40">
-                <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-2">申請内容</p>
-                <p className="text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
-                  {selectedApplication.formData?.details ||
-                    selectedApplication.formData?.notes ||
-                    selectedApplication.formData?.invoice?.description ||
-                    '内容が入力されていません。'}
+                <p className="text-sm font-semibold text-slate-600 dark:text-slate-300 mb-2">申請内容</p>
+                <p className="text-base text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
+                  {deriveApplicationContent(selectedApplication) || '内容が入力されていません。'}
                 </p>
               </div>
 
               {(selectedApplication.formData?.invoice?.lines || []).length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">内訳</p>
+                  <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">内訳</p>
                   {(selectedApplication.formData?.invoice?.lines || []).map((line: any) => (
                     <div
                       key={line.id || `${line.description}-${line.amountExclTax}`}
                       className="flex items-center justify-between p-3 bg-white dark:bg-slate-900/40 rounded-lg border border-slate-200 dark:border-slate-700"
                     >
                       <div>
-                        <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
-                          {line.description || '内訳未入力'}
+                        <div className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                          {deriveLineDescription(line) || '内訳未入力'}
                         </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                          {line.projectName || line.customerName || 'プロジェクト未設定'}
+                        <div className="text-sm text-slate-600 dark:text-slate-300">
+                          {deriveLineSubLabel(line)}
                         </div>
                       </div>
                       <div className="text-sm font-mono font-semibold text-slate-700 dark:text-slate-200">
@@ -976,7 +1075,7 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
 
               <div className="space-y-2">
                 {(selectedApplication.journalEntry?.lines || []).length === 0 ? (
-                  <div className="text-sm text-slate-500 dark:text-slate-400">仕訳は未生成です。</div>
+                  <div className="text-base text-slate-600 dark:text-slate-300">仕訳は未生成です。</div>
                 ) : (
                   (selectedApplication.journalEntry?.lines || []).map(line => {
                     const amount = (line.debit_amount ?? 0) > 0 ? line.debit_amount : line.credit_amount;
@@ -984,14 +1083,14 @@ export const ApprovedApplications: React.FC<ApprovedApplicationsProps> = ({
                     return (
                       <div key={line.id} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/40 rounded-lg border border-slate-200 dark:border-slate-700">
                         <div>
-                          <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                          <div className="text-base font-semibold text-slate-900 dark:text-slate-100">
                             {line.account_name || line.account_code || '未設定'}
                           </div>
-                          <div className="text-xs text-slate-500 dark:text-slate-400">
+                          <div className="text-sm text-slate-600 dark:text-slate-300">
                             {line.debit_amount && line.debit_amount > 0 ? '借方' : '貸方'}
                           </div>
                         </div>
-                        <div className="text-sm font-mono font-semibold text-slate-700 dark:text-slate-200">
+                        <div className="text-base font-mono font-semibold text-slate-800 dark:text-slate-100">
                           {amountText ? amountText : '-'}
                         </div>
                       </div>
