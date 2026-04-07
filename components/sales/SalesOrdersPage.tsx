@@ -120,12 +120,6 @@ const OrdersSection: React.FC<{
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm overflow-hidden">
-      <div className="px-6 py-5 border-b border-slate-200/70 dark:border-slate-700">
-        <h3 className="text-lg font-semibold text-slate-900 dark:text-white">受注テーブル（orders）</h3>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Supabase の orders テーブルに保存された受注・発注行を、案件単位で照会できます。
-        </p>
-      </div>
       {orderRows.length === 0 ? (
         <div className="px-6 py-12">
           <EmptyState
@@ -222,13 +216,7 @@ const SalesOrdersPage: React.FC<SalesOrdersPageProps> = ({
           </button>
         </div>
       )}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900 dark:text-white">案件 / プロジェクト一覧</h2>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
-            projects + orders のハイブリッド集計で、売上高 (P)・限界利益 (M)・受注件数を同一テーブルで確認できます。案件を選択すると詳細モーダルが開きます。
-          </p>
-        </div>
+      <section>
         <JobList
           jobs={projectSummaries}
           searchTerm={searchTerm}
