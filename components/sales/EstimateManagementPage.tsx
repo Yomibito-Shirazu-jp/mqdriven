@@ -1202,14 +1202,21 @@ const EstimateManagementPage: React.FC<EstimateManagementPageProps> = ({
                                             <SortableHeader
                                                 sortConfig={sortConfig}
                                                 requestSort={(key) => setSortConfig({ key, direction: sortConfig?.key === key && sortConfig.direction === 'ascending' ? 'descending' : 'ascending' })}
-                                                sortKey="status"
-                                                label="ステータス"
+                                                sortKey="mqRate"
+                                                label="MQ率"
+                                                className="text-right"
                                             />
                                             <SortableHeader
                                                 sortConfig={sortConfig}
                                                 requestSort={(key) => setSortConfig({ key, direction: sortConfig?.key === key && sortConfig.direction === 'ascending' ? 'descending' : 'ascending' })}
-                                                sortKey="createdAt"
-                                                label="作成日"
+                                                sortKey="deliveryDate"
+                                                label="納期"
+                                            />
+                                            <SortableHeader
+                                                sortConfig={sortConfig}
+                                                requestSort={(key) => setSortConfig({ key, direction: sortConfig?.key === key && sortConfig.direction === 'ascending' ? 'descending' : 'ascending' })}
+                                                sortKey="status"
+                                                label="ステータス"
                                             />
                                             <th className="text-left py-3 px-4 font-semibold text-slate-900 dark:text-white">操作</th>
                                         </tr>
@@ -1225,6 +1232,17 @@ const EstimateManagementPage: React.FC<EstimateManagementPageProps> = ({
                                                     </div>
                                                 </td>
                                                 <td className="py-3 px-4 text-right">{formatJPY(Number(estimate.total) || 0)}</td>
+                                                <td className="py-3 px-4 text-right text-sm">
+                                                    {(() => {
+                                                        const rate = Number(estimate.mqRate ?? estimate.mq_rate ?? 0);
+                                                        if (!rate) return <span className="text-slate-400">-</span>;
+                                                        const color = rate >= 40 ? 'text-green-600' : rate >= 20 ? 'text-amber-600' : 'text-red-600';
+                                                        return <span className={`font-semibold ${color}`}>{(rate * 100).toFixed(1)}%</span>;
+                                                    })()}
+                                                </td>
+                                                <td className="py-3 px-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                                                    {formatDate(estimate.deliveryDate || estimate.delivery_date) || '-'}
+                                                </td>
                                                 <td className="py-3 px-4">
                                                     {(() => {
                                                         const s = String(estimate.status || '0').toLowerCase();
@@ -1246,7 +1264,6 @@ const EstimateManagementPage: React.FC<EstimateManagementPageProps> = ({
                                                         return <span className={`px-2 py-1 rounded-full text-xs font-semibold ${info.cls}`}>{info.label}</span>;
                                                     })()}
                                                 </td>
-                                                <td className="py-3 px-4">{formatDate(estimate.created_at)}</td>
                                                 <td className="py-3 px-4">
                                                     <div className="flex items-center gap-2">
                                                         <button

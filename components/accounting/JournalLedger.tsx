@@ -132,18 +132,9 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry: _onAddEntry, 
                 sortConfig={sortConfig}
                 requestSort={(key) => setSortConfig({ key, direction: sortConfig?.key === key && sortConfig.direction === 'ascending' ? 'descending' : 'ascending' })}
               />
-              <SortableHeader
-                label="科目コード"
-                sortKey="code"
-                sortConfig={sortConfig}
-                requestSort={(key) => setSortConfig({ key, direction: sortConfig?.key === key && sortConfig.direction === 'ascending' ? 'descending' : 'ascending' })}
-              />
-              <SortableHeader
-                label="科目名"
-                sortKey="name"
-                sortConfig={sortConfig}
-                requestSort={(key) => setSortConfig({ key, direction: sortConfig?.key === key && sortConfig.direction === 'ascending' ? 'descending' : 'ascending' })}
-              />
+              <th className="px-4 py-3 font-medium">摘要</th>
+              <th className="px-4 py-3 font-medium">借方科目</th>
+              <th className="px-4 py-3 font-medium">貸方科目</th>
               <SortableHeader
                 label="借方"
                 sortKey="debit_amount"
@@ -174,14 +165,19 @@ const JournalLedger: React.FC<JournalLedgerProps> = ({ onAddEntry: _onAddEntry, 
                     onClick={() => setExpandedId(isExpanded ? null : rowKey)}
                     className={`border-b border-gray-100 hover:bg-blue-50 dark:hover:bg-slate-700 transition-colors cursor-pointer ${isExpanded ? 'bg-blue-50 dark:bg-slate-700' : ''}`}
                   >
-                    <td className="px-6 py-4 text-gray-700 dark:text-slate-300 font-mono">
+                    <td className="px-4 py-3 text-gray-700 dark:text-slate-300 font-mono text-sm">
                       {String(entry.date).split('T')[0]}
                     </td>
-                    <td className="px-6 py-4 text-gray-700 dark:text-slate-300">
-                      {entry.code}
+                    <td className="px-4 py-3 text-gray-600 dark:text-slate-400 text-sm truncate max-w-[180px]" title={entry.description || ''}>
+                      {entry.description || '-'}
                     </td>
-                    <td className="px-6 py-4 text-gray-700 dark:text-slate-300">
-                      {entry.name}
+                    <td className="px-4 py-3 text-sm">
+                      <span className="font-mono text-slate-500">{entry.debit_account_code || entry.code || ''}</span>
+                      <span className="ml-1 text-gray-700 dark:text-slate-300">{entry.debit_account_name || entry.name || ''}</span>
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      <span className="font-mono text-slate-500">{entry.credit_account_code || ''}</span>
+                      <span className="ml-1 text-gray-700 dark:text-slate-300">{entry.credit_account_name || ''}</span>
                     </td>
                     <td className="px-6 py-4 text-right text-gray-700 dark:text-slate-300 font-mono">
                       {Number(entry.debit_amount) > 0 ? `¥${Number(entry.debit_amount).toLocaleString()}` : '-'}
