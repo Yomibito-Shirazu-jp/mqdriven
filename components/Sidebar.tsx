@@ -89,9 +89,9 @@ const BASE_NAV_CATEGORIES: NavCategoryType[] = [
     name: '分析',
     icon: PieChart,
     items: [
-      { page: 'analysis_dashboard', name: '分析ダッシュボード' },
+      { page: 'analysis_dashboard', name: '🔥 起死回生プラン' },
       { page: 'analysis_ranking', name: '売上ランキング' },
-      { page: 'turnaround_plan', name: '🔥 起死回生プラン' },
+      { page: 'strac_analysis', name: 'STRAC分析' },
     ],
   },
   {

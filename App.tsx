@@ -307,7 +307,7 @@ type PredictiveSuggestion = {
 };
 
 const PAGE_TITLES: Record<Page, string> = {
-    analysis_dashboard: '分析ダッシュボード',
+    analysis_dashboard: '起死回生プラン',
     sales_dashboard: '販売ダッシュボード',
     sales_leads: 'リード管理',
     sales_customers: '取引先',
@@ -1400,29 +1400,7 @@ const App: React.FC = () => {
     const renderContent = () => {
         switch (currentPage) {
             case 'analysis_dashboard':
-                return <Dashboard
-                    jobs={jobs}
-                    journalEntries={journalEntries}
-                    accountItems={accountItems}
-                    customers={customers}
-                    purchaseOrders={purchaseOrders}
-                    applications={applications}
-                    suggestion={aiSuggestion}
-                    isSuggestionLoading={isSuggestionLoading}
-                    pendingApprovalCount={pendingApprovalCount}
-                    onNavigateToApprovals={() => handleNavigate('approval_list')}
-                    onNavigateToBulletinBoard={() => handleNavigate('bulletin_board')}
-                    isAIOff={isAIOff}
-                    onStartGoogleCalendarAuth={handleStartGoogleCalendarAuth}
-                    onDisconnectGoogleCalendar={handleDisconnectGoogleCalendar}
-                    isGoogleAuthLoading={isGoogleAuthLoading}
-                    googleAuthConnected={googleAuthStatus.connected}
-                    googleAuthExpiresAt={googleAuthStatus.expiresAt}
-                    googleAuthStatusLoading={googleAuthStatus.loading}
-                    toastsEnabled={toastsEnabled}
-                    onToggleToasts={toggleToasts}
-                    addToast={addToast}
-                />;
+                return <TurnaroundPlanPage />;
             case 'sales_dashboard':
                 return <SalesDashboard jobs={jobs} leads={leads} />;
             case 'sales_orders':
