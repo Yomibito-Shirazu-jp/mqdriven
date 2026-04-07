@@ -141,6 +141,7 @@ const OrdersSection: React.FC<{
               <tr>
                 <SortableHeader sortKey="supplierName" label="顧客 / 案件名" sortConfig={sortConfig} requestSort={requestSort} />
                 <SortableHeader sortKey="orderDate" label="受注日" sortConfig={sortConfig} requestSort={requestSort} />
+                <th scope="col" className="px-4 py-3 font-medium">納期</th>
                 <SortableHeader sortKey="quantity" label="数量" sortConfig={sortConfig} requestSort={requestSort} className="text-right" />
                 <SortableHeader sortKey="unitPrice" label="単価" sortConfig={sortConfig} requestSort={requestSort} className="text-right" />
                 <SortableHeader sortKey="totalAmount" label="売上高" sortConfig={sortConfig} requestSort={requestSort} className="text-right" />
@@ -160,6 +161,7 @@ const OrdersSection: React.FC<{
                       <div className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[200px]">{projectTitle}</div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm">{formatDate(order.orderDate)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-500">{formatDate((order as any).deliveryDate || (order as any).delivery_date) || '-'}</td>
                     <td className="px-4 py-3 text-right font-mono text-sm">{order.quantity > 0 ? order.quantity.toLocaleString() : '-'}</td>
                     <td className="px-4 py-3 text-right text-sm">{order.unitPrice > 0 ? formatJPY(order.unitPrice) : '-'}</td>
                     <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-slate-100">

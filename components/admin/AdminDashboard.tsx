@@ -142,19 +142,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       const supabase = getSupabase();
 
-      // 売掛金（未回収の売上）
+      // 売掛金（account_code=1150系）をjournal_linesから集計
       const { data: receivablesData, error: receivablesError } = await supabase
-        .from('journal_entries')
-        .select('*')
-        .eq('account_type', 'receivable')
-        .eq('status', 'posted');
+        .from('journal_lines')
+        .select('debit, credit, account_code')
+        .like('account_code', '115%');
 
-      // 買掛金（未支払の仕入）
+      // 買掛金（account_code=2110系）をjournal_linesから集計
       const { data: payablesData, error: payablesError } = await supabase
-        .from('journal_entries')
-        .select('*')
-        .eq('account_type', 'payable')
-        .eq('status', 'posted');
+        .from('journal_lines')
+        .select('debit, credit, account_code')
+        .like('account_code', '211%');
 
       if (receivablesError || payablesError) {
         console.error('Error fetching receivables/payables:', receivablesError || payablesError);
@@ -166,19 +164,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({
         };
       }
 
-      const receivablesAmount = (receivablesData || []).reduce((sum, entry) => {
-        return sum + Number(entry.debit || entry.credit || 0);
+      // 売掛金 = 借方合計 - 貸方合計（残高）
+      const receivablesAmount = (receivablesData || []).reduce((sum, line) => {
+        return sum + Number(line.debit || 0) - Number(line.credit || 0);
       }, 0);
 
-      const payablesAmount = (payablesData || []).reduce((sum, entry) => {
-        return sum + Number(entry.debit || entry.credit || 0);
+      // 買掛金 = 貸方合計 - 借方合計（残高）
+      const payablesAmount = (payablesData || []).reduce((sum, line) => {
+        return sum + Number(line.credit || 0) - Number(line.debit || 0);
       }, 0);
 
       return {
-        receivablesCount: receivablesData?.length || 0,
-        receivablesAmount,
-        payablesCount: payablesData?.length || 0,
-        payablesAmount,
+        receivablesCount: (receivablesData || []).filter(l => Number(l.debit || 0) > 0).length,
+        receivablesAmount: Math.max(0, receivablesAmount),
+        payablesCount: (payablesData || []).filter(l => Number(l.credit || 0) > 0).length,
+        payablesAmount: Math.max(0, payablesAmount),
       };
     } catch (error) {
       console.error('Error in fetchReceivablesPayables:', error);
