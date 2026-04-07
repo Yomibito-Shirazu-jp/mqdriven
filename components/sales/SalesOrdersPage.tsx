@@ -76,11 +76,13 @@ const OrdersSection: React.FC<{
       const projectCode = order.projectCode ? String(order.projectCode) : order.itemName ? String(order.itemName) : '';
       const normalizedQuantity = Number(order.quantity ?? 0);
       const normalizedUnitPrice = Number(order.unitPrice ?? 0);
-      const totalAmount = normalizedQuantity * normalizedUnitPrice;
+      // amount列がある場合はそちらを優先（DBに合計が入っている）
+      const rawAmount = Number((order as any).amount ?? 0);
+      const totalAmount = rawAmount > 0 ? rawAmount : (normalizedQuantity * normalizedUnitPrice);
       return {
         ...order,
         quantity: normalizedQuantity,
-        unitPrice: normalizedUnitPrice,
+        unitPrice: normalizedUnitPrice > 0 ? normalizedUnitPrice : (normalizedQuantity > 0 ? Math.round(totalAmount / normalizedQuantity) : 0),
         projectCode,
         linkedProject: projectCode ? jobLookup.get(projectCode) : undefined,
         totalAmount,
@@ -137,53 +139,54 @@ const OrdersSection: React.FC<{
           <table className="w-full text-base text-left text-slate-600 dark:text-slate-300">
             <thead className="text-sm uppercase bg-slate-50 dark:bg-slate-700/70 text-slate-600 dark:text-slate-200">
               <tr>
-                <th scope="col" className="px-6 py-3 font-medium">受注ID</th>
-                <SortableHeader sortKey="projectCode" label="案件番号" sortConfig={sortConfig} requestSort={requestSort} />
                 <SortableHeader sortKey="supplierName" label="顧客 / 案件名" sortConfig={sortConfig} requestSort={requestSort} />
                 <SortableHeader sortKey="orderDate" label="受注日" sortConfig={sortConfig} requestSort={requestSort} />
                 <SortableHeader sortKey="quantity" label="数量" sortConfig={sortConfig} requestSort={requestSort} className="text-right" />
                 <SortableHeader sortKey="unitPrice" label="単価" sortConfig={sortConfig} requestSort={requestSort} className="text-right" />
                 <SortableHeader sortKey="totalAmount" label="売上高" sortConfig={sortConfig} requestSort={requestSort} className="text-right" />
                 <SortableHeader sortKey="status" label="ステータス" sortConfig={sortConfig} requestSort={requestSort} />
-                <th scope="col" className="px-6 py-3 font-medium text-center">計上</th>
+                <th scope="col" className="px-4 py-3 font-medium text-center">計上</th>
               </tr>
             </thead>
             <tbody>
-              {sortedOrders.map(order => (
-                <tr key={order.id} className="bg-white dark:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/60">
-                  <td className="px-6 py-4 font-mono text-xs text-slate-500 dark:text-slate-400">{order.id?.slice(0, 8)}...</td>
-                  <td className="px-6 py-4">
-                    <div className="font-mono text-sm text-slate-700 dark:text-slate-200">{order.projectCode || '-'}</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">{order.linkedProject ? '紐付済み' : '未紐付'}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-slate-900 dark:text-white">
-                      {order.linkedProject?.clientName ?? order.supplierName}
-                    </div>
-                    <div className="text-sm text-slate-500 dark:text-slate-400">
-                      {order.linkedProject?.title ?? '案件情報なし'}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">{formatDate(order.orderDate)}</td>
-                  <td className="px-6 py-4 text-right font-mono">{order.quantity.toLocaleString()}</td>
-                  <td className="px-6 py-4 text-right">{formatJPY(order.unitPrice)}</td>
-                  <td className="px-6 py-4 text-right font-semibold text-slate-900 dark:text-slate-100">
-                    {formatJPY(order.totalAmount)}
-                  </td>
-                  <td className="px-6 py-4"><StatusBadge status={order.status} /></td>
-                  <td className="px-6 py-4 text-center">
-                    <button
-                      onClick={() => handlePostToJournal(order)}
-                      disabled={postingOrderId === order.id}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/50 dark:text-indigo-200 dark:hover:bg-indigo-800/50 disabled:opacity-50 transition"
-                      title="仕訳下書きを作成"
-                    >
-                      {postingOrderId === order.id ? <Loader className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
-                      仕訳作成
-                    </button>
-                  </td>
-                </tr>
-              ))}
+              {sortedOrders.map(order => {
+                const customerName = order.linkedProject?.clientName || order.supplierName || '-';
+                const projectTitle = order.linkedProject?.title || order.projectCode || order.itemName || '-';
+                const statusLabel = order.status === PurchaseOrderStatus.Ordered ? '受注' : order.status === PurchaseOrderStatus.Received ? '納品済' : order.status === PurchaseOrderStatus.Cancelled ? 'キャンセル' : (order.status || '未設定');
+                return (
+                  <tr key={order.id} className="bg-white dark:bg-slate-800/80 border-b border-slate-100 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-slate-900 dark:text-white truncate max-w-[200px]">{customerName}</div>
+                      <div className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[200px]">{projectTitle}</div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm">{formatDate(order.orderDate)}</td>
+                    <td className="px-4 py-3 text-right font-mono text-sm">{order.quantity > 0 ? order.quantity.toLocaleString() : '-'}</td>
+                    <td className="px-4 py-3 text-right text-sm">{order.unitPrice > 0 ? formatJPY(order.unitPrice) : '-'}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-slate-900 dark:text-slate-100">
+                      {order.totalAmount > 0 ? formatJPY(order.totalAmount) : '-'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                        order.status === PurchaseOrderStatus.Ordered ? 'bg-blue-100 text-blue-700' :
+                        order.status === PurchaseOrderStatus.Received ? 'bg-green-100 text-green-700' :
+                        order.status === PurchaseOrderStatus.Cancelled ? 'bg-red-100 text-red-700' :
+                        'bg-slate-100 text-slate-500'
+                      }`}>{statusLabel}</span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <button
+                        onClick={() => handlePostToJournal(order)}
+                        disabled={postingOrderId === order.id}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/50 dark:text-indigo-200 dark:hover:bg-indigo-800/50 disabled:opacity-50 transition"
+                        title="仕訳下書きを作成"
+                      >
+                        {postingOrderId === order.id ? <Loader className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                        仕訳作成
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
