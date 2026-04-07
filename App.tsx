@@ -464,7 +464,7 @@ const App: React.FC = () => {
     // Update Modal State
     const [showUpdateModal, setShowUpdateModal] = useState(false);
     // Global State
-    const [currentPage, setCurrentPage] = useState<Page>('sales_dashboard');
+    const [currentPage, setCurrentPage] = useState<Page>('analysis_dashboard');
     const [searchTerm, setSearchTerm] = useState('');
     const [currentUser, setCurrentUser] = useState<EmployeeUser | null>(null);
     const [user, setUser] = useState<any>(null); // TODO: Replace 'any' with proper user type
