@@ -27,8 +27,8 @@ SELECT
     
     -- Estimate information
     e.id as estimate_id,
-    e.estimate_code,
-    e.estimate_name,
+    e.estimate_number as estimate_code,
+    e.notes as estimate_name,
     
     -- Calculated fields for analysis
     CASE 

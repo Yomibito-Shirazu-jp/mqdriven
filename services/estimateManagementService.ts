@@ -36,13 +36,13 @@ export const saveEstimateToManagement = async (request: SaveEstimateRequest): Pr
     
     const estimateData = {
       estimates_id: documentNumber,
-      project_id: request.customerInfo.name,
+      customer_name: request.customerInfo.name,
       pattern_no: '1',
       pattern_name: request.estimateData.title,
       specification: request.estimateData.notes,
-      copies: 1,
-      unit_price: request.estimateData.totalAmount,
-      tax_rate: request.estimateData.taxRate * 100,
+      copies: '1',
+      unit_price: request.estimateData.totalAmount.toString(),
+      tax_rate: (request.estimateData.taxRate * 100).toString(),
       total: request.estimateData.totalAmount.toString(),
       subtotal: request.estimateData.subtotal.toString(),
       consumption: request.estimateData.taxAmount.toString(),
@@ -53,9 +53,9 @@ export const saveEstimateToManagement = async (request: SaveEstimateRequest): Pr
       note: request.estimateData.notes,
       status: '0', // draft
       create_id: 'current-user',
-      create_date: new Date().toISOString(),
+      create_date: new Date().toISOString().split('T')[0],
       update_id: 'current-user',
-      update_date: new Date().toISOString(),
+      update_date: new Date().toISOString().split('T')[0],
       valiable_cost: '0',
       margin: '0',
       margin_rate: '0'

@@ -14,14 +14,14 @@ export const fetchPastEstimates = async (params: {
 }): Promise<Array<{
   id: string;
   customer_name: string;
-  title: string;
+  pattern_name: string;
   total: number;
   subtotal: number;
-  tax_amount: number;
+  consumption: number;
   specification: string;
   copies: number;
   unit_price: number;
-  created_at: string;
+  create_date: string;
 }>> => {
   const supabase = getSupabase();
   let query = supabase
@@ -29,20 +29,20 @@ export const fetchPastEstimates = async (params: {
     .select(`
       id,
       customer_name,
-      title,
+      pattern_name,
       total,
       subtotal,
-      tax_amount,
+      consumption,
       specification,
       copies,
       unit_price,
-      created_at
+      create_date
     `)
-    .order('created_at', { ascending: false })
+    .order('create_date', { ascending: false })
     .limit(params.limit || 50);
 
   if (params.customerId) {
-    query = query.eq('customer_id', params.customerId);
+    query = query.ilike('customer_name', `%${params.customerId}%`);
   }
 
   const { data, error } = await query;
@@ -59,7 +59,7 @@ export const fetchPastEstimates = async (params: {
 export const findSimilarEstimates = async (spec: PrintSpec): Promise<Array<{
   id: string;
   customer_name: string;
-  title: string;
+  pattern_name: string;
   total: number;
   copies: number;
   unit_price: number;
@@ -74,13 +74,13 @@ export const findSimilarEstimates = async (spec: PrintSpec): Promise<Array<{
     .select(`
       id,
       customer_name,
-      title,
+      pattern_name,
       total,
       copies,
       unit_price,
       specification
     `)
-    .order('created_at', { ascending: false })
+    .order('create_date', { ascending: false })
     .limit(20);
 
   if (error) {
@@ -117,11 +117,11 @@ export const findSimilarEstimates = async (spec: PrintSpec): Promise<Array<{
 // AI見積もり生成のプロンプトを構築
 const buildEstimatePrompt = (
   spec: PrintSpec,
-  pastEstimates: Array<{ customer_name: string; title: string; total: number; copies: number; unit_price: number; specification: string }>
+  pastEstimates: Array<{ customer_name: string; pattern_name: string; total: number; copies: number; unit_price: number; specification: string }>
 ): string => {
   const pastDataSummary = pastEstimates.length > 0
     ? pastEstimates.map((est, i) =>
-      `${i + 1}. ${est.customer_name} - ${est.title}: ${est.copies}部 × ¥${est.unit_price?.toLocaleString() || 0} = ¥${est.total?.toLocaleString() || 0}`
+      `${i + 1}. ${est.customer_name} - ${est.pattern_name}: ${est.copies}部 × ¥${est.unit_price?.toLocaleString() || 0} = ¥${est.total?.toLocaleString() || 0}`
     ).join('\n')
     : '過去データなし';
 
@@ -320,23 +320,23 @@ export const saveAiEstimate = async (params: {
 
   const supabase = getSupabase();
 
+  const now = new Date().toISOString();
   const estimateData = {
-    customer_id: customerId || null,
-    customer_name: spec.clientName,
-    title: spec.projectName,
+    customer_name: spec.clientName || null,
+    pattern_name: spec.projectName || null,
     specification: `${spec.category} / ${spec.size} / ${spec.paperType} / ${spec.pages}P / ${spec.colors}`,
-    copies: spec.quantity,
-    unit_price: Math.round(selectedOption.pq / spec.quantity),
-    subtotal: selectedOption.pq,
-    tax_rate: 10,
-    tax_amount: Math.round(selectedOption.pq * 0.1),
-    total: Math.round(selectedOption.pq * 1.1),
-    status: 'draft',
-    delivery_date: spec.requestedDelivery,
+    copies: String(spec.quantity),
+    unit_price: String(Math.round(selectedOption.pq / spec.quantity)),
+    subtotal: String(selectedOption.pq),
+    tax_rate: '10',
+    consumption: String(Math.round(selectedOption.pq * 0.1)),
+    total: String(Math.round(selectedOption.pq * 1.1)),
+    status: '0',
+    delivery_date: spec.requestedDelivery || null,
     note: `AI生成見積もり (${selectedOption.label})\n${result.aiReasoning}`,
-    created_by: createdBy || null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
+    create_id: createdBy || null,
+    create_date: now.split('T')[0],
+    update_date: now.split('T')[0],
   };
 
   const { data, error } = await supabase
