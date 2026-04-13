@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
     Save,
     Send,
@@ -13,10 +13,14 @@ import {
     Calculator,
     CheckCircle,
     Sparkles,
-    AlertTriangle
+    AlertTriangle,
+    Upload,
+    Loader2,
+    X
 } from 'lucide-react';
 import { Customer, Estimate, Project, EstimateDetail, Toast } from '../../types';
 import * as dataService from '../../services/dataService';
+import { extractEstimateFromPdf, ExtractedEstimate } from '../../services/geminiService';
 
 // ---------- Types ----------
 interface ItemDetail {
@@ -73,6 +77,25 @@ const createEmptyItem = (): ItemDetail => ({
     mRate: 0,
 });
 
+const readFileAsBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (typeof reader.result === 'string') resolve(reader.result.split(',')[1]);
+            else reject(new Error('ファイル読み取りに失敗しました。'));
+        };
+        reader.onerror = (err) => reject(err);
+        reader.readAsDataURL(file);
+    });
+
+type PdfImportItem = {
+    id: string;
+    fileName: string;
+    status: 'processing' | 'done' | 'error';
+    data: ExtractedEstimate | null;
+    errorMessage: string | null;
+};
+
 const calcMRate = (amount: number, vq: number): number => {
     if (amount <= 0) return 0;
     const mq = amount - vq;
@@ -90,6 +113,12 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+    // PDF import
+    const [showPdfImport, setShowPdfImport] = useState(false);
+    const [pdfImportItems, setPdfImportItems] = useState<PdfImportItem[]>([]);
+    const [isPdfUploading, setIsPdfUploading] = useState(false);
+    const pdfFileRef = useRef<HTMLInputElement>(null);
 
     // Basic info
     const [formData, setFormData] = useState({
@@ -292,6 +321,78 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
         }
     };
 
+    // ---------- PDF Import ----------
+    const processPdfFile = async (file: File) => {
+        const tempId = `pdf_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        setPdfImportItems(prev => [...prev, { id: tempId, fileName: file.name, status: 'processing', data: null, errorMessage: null }]);
+        try {
+            const base64 = await readFileAsBase64(file);
+            const data = await extractEstimateFromPdf(base64, file.type);
+            setPdfImportItems(prev => prev.map(i => i.id === tempId ? { ...i, status: 'done' as const, data } : i));
+        } catch (err: any) {
+            setPdfImportItems(prev => prev.map(i => i.id === tempId ? { ...i, status: 'error' as const, errorMessage: err.message || '解析に失敗しました。' } : i));
+        }
+    };
+
+    const handlePdfFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const files = Array.from(e.target.files || []);
+        if (!files.length) return;
+        setIsPdfUploading(true);
+        try {
+            await Promise.all(files.map(f => processPdfFile(f)));
+        } finally {
+            setIsPdfUploading(false);
+            e.target.value = '';
+        }
+    };
+
+    const applyPdfImport = () => {
+        const doneItems = pdfImportItems.filter(i => i.status === 'done' && i.data);
+        if (!doneItems.length) return;
+
+        // Use first item for form header fields
+        const first = doneItems[0].data!;
+        setFormData(prev => ({
+            ...prev,
+            title: first.title || prev.title,
+            customerName: first.customerName || prev.customerName,
+            specification: first.specification || prev.specification,
+            copies: first.copies || prev.copies,
+            deliveryPlace: first.deliveryPlace || prev.deliveryPlace,
+            deliveryDate: first.deliveryDate || prev.deliveryDate,
+            expirationDate: first.expirationDate || prev.expirationDate,
+            transactionMethod: first.transactionMethod || prev.transactionMethod,
+            notes: first.notes || prev.notes,
+        }));
+
+        // Collect all line items from all PDFs
+        const newItems: ItemDetail[] = doneItems.flatMap(di =>
+            (di.data!.items || []).map(it => ({
+                id: Math.random().toString(36).substr(2, 9),
+                majorCategory: 'その他',
+                middleCategory: 'その他',
+                size: '',
+                details: it.description,
+                quantity: it.quantity || 1,
+                unitPrice: it.unitPrice || 0,
+                amount: it.amount || (it.quantity || 1) * (it.unitPrice || 0),
+                taxType: '課税' as const,
+                taxCategory: '外税' as const,
+                taxRate: 10,
+                vq: 0,
+                mRate: calcMRate(it.amount || (it.quantity || 1) * (it.unitPrice || 0), 0),
+            }))
+        );
+
+        if (newItems.length > 0) {
+            setItems(prev => [...prev, ...newItems]);
+        }
+
+        addToast?.(`${doneItems.length}件のPDFから${newItems.length}件の明細をインポートしました。`, 'success');
+        setPdfImportItems([]);
+        setShowPdfImport(false);
+    };
+
     // ---------- Styles ----------
     const labelClass = 'bg-[#005a8d] text-white px-3 py-2 text-xs font-bold w-32 flex items-center shrink-0 shadow-sm';
     const inputClass = 'flex-1 border-2 border-[#e5e7eb] px-3 py-2 text-sm focus:border-[#005a8d] focus:outline-none transition-all';
@@ -327,6 +428,13 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                     {saveMessage && (
                         <span className="text-sm font-bold text-emerald-600 animate-pulse">{saveMessage}</span>
                     )}
+                    <button
+                        onClick={() => setShowPdfImport(true)}
+                        className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded font-bold shadow-sm transition-all active:scale-95 text-sm flex items-center gap-2"
+                    >
+                        <Upload className="w-4 h-4" />
+                        PDFインポート
+                    </button>
                     <button
                         onClick={() => handleSave('draft')}
                         disabled={isSubmitting}
@@ -800,6 +908,92 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* ====== PDF IMPORT MODAL ====== */}
+            {showPdfImport && (
+                <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-[100] p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+                        <div className="flex justify-between items-center p-6 border-b border-gray-200">
+                            <h2 className="text-xl font-black text-gray-900">PDFから見積インポート</h2>
+                            <button onClick={() => { setPdfImportItems([]); setShowPdfImport(false); }} className="text-gray-400 hover:text-gray-600">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto flex-1 space-y-4">
+                            <div className="flex items-center gap-3">
+                                <label className={`inline-flex items-center gap-2 bg-[#005a8d] text-white font-bold py-2.5 px-5 rounded-lg shadow-md hover:bg-[#004e7a] cursor-pointer transition-colors ${isPdfUploading ? 'opacity-60 pointer-events-none' : ''}`}>
+                                    <Upload className="w-5 h-5" />
+                                    <span>PDFファイルを選択</span>
+                                    <input
+                                        ref={pdfFileRef}
+                                        type="file"
+                                        className="sr-only"
+                                        accept="application/pdf,image/png,image/jpeg,image/webp"
+                                        multiple
+                                        onChange={handlePdfFiles}
+                                        disabled={isPdfUploading}
+                                    />
+                                </label>
+                                <span className="text-sm text-gray-500">1つまたは複数のPDF・画像を選択</span>
+                            </div>
+
+                            {pdfImportItems.length === 0 && (
+                                <div className="text-center py-12 text-gray-400">
+                                    <FileText className="w-16 h-16 mx-auto mb-3 opacity-40" />
+                                    <p>見積書PDFをアップロードすると、AIが内容を自動で読み取ります。</p>
+                                    <p className="text-xs mt-1">読み取った内容はフォームと明細テーブルに反映されます。</p>
+                                </div>
+                            )}
+
+                            {pdfImportItems.map(item => (
+                                <div key={item.id} className={`border rounded-xl p-4 ${item.status === 'error' ? 'border-red-300 bg-red-50' : item.status === 'done' ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            {item.status === 'processing' && <Loader2 className="w-5 h-5 animate-spin text-blue-500 flex-shrink-0" />}
+                                            {item.status === 'done' && <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />}
+                                            {item.status === 'error' && <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />}
+                                            <span className="text-sm font-medium truncate">{item.fileName}</span>
+                                            {item.status === 'processing' && <span className="text-xs text-gray-500">AIが解析中...</span>}
+                                        </div>
+                                        <button onClick={() => setPdfImportItems(prev => prev.filter(i => i.id !== item.id))} className="text-gray-400 hover:text-red-500 flex-shrink-0">
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                    {item.status === 'error' && <p className="mt-2 text-sm text-red-600">{item.errorMessage}</p>}
+                                    {item.status === 'done' && item.data && (
+                                        <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                                            <div><span className="text-gray-500">顧客名</span><p className="font-medium">{item.data.customerName || '—'}</p></div>
+                                            <div><span className="text-gray-500">件名</span><p className="font-medium">{item.data.title || '—'}</p></div>
+                                            <div><span className="text-gray-500">合計金額</span><p className="font-medium">¥{(item.data.total || 0).toLocaleString()}</p></div>
+                                            <div><span className="text-gray-500">明細数</span><p className="font-medium">{item.data.items?.length || 0}件</p></div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        <div className="flex justify-between items-center p-6 border-t border-gray-200">
+                            <span className="text-sm text-gray-500">
+                                {pdfImportItems.filter(i => i.status === 'done').length > 0
+                                    ? `${pdfImportItems.filter(i => i.status === 'done').length}件の読み取り完了`
+                                    : ''}
+                            </span>
+                            <div className="flex gap-3">
+                                <button onClick={() => { setPdfImportItems([]); setShowPdfImport(false); }} className="px-4 py-2 rounded-lg font-bold text-gray-600 hover:bg-gray-100">
+                                    キャンセル
+                                </button>
+                                <button
+                                    onClick={applyPdfImport}
+                                    disabled={!pdfImportItems.some(i => i.status === 'done')}
+                                    className="bg-[#005a8d] hover:bg-[#004e7a] text-white font-bold px-5 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    <CheckCircle className="w-5 h-5" />
+                                    フォームに反映
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <style>{`
                 input[type="date"]::-webkit-calendar-picker-indicator {
