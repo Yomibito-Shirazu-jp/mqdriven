@@ -14,6 +14,7 @@ import { formatDateTime } from '../../utils';
 import EmptyState from '../ui/EmptyState';
 import SortableHeader from '../ui/SortableHeader';
 import { DropdownMenu, DropdownMenuItem } from '../ui/DropdownMenu';
+import LeadPdfImportModal, { ExtractedLead } from '../LeadPdfImportModal';
 
 interface LeadManagementPageProps {
   leads: Lead[];
@@ -45,6 +46,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
     const [togglingHandledId, setTogglingHandledId] = useState<string | null>(null);
     const [isAddingExistingCustomerLead, setIsAddingExistingCustomerLead] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+    const [isPdfImportOpen, setIsPdfImportOpen] = useState(false);
 
     const handleRowClick = (lead: Lead) => {
         setInitialAiTab(undefined);
@@ -215,6 +217,28 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
         } finally {
             setIsAddingExistingCustomerLead(false);
         }
+    };
+
+    const handlePdfLeadImport = async (extractedLeads: ExtractedLead[]) => {
+        for (const d of extractedLeads) {
+            const now = new Date().toISOString();
+            const newLead: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'> = {
+                status: LeadStatus.New,
+                name: d.name || '名前不明',
+                email: d.email || null,
+                phone: d.phone || null,
+                company: d.company || '会社名不明',
+                source: 'pdf_import',
+                tags: ['PDFインポート'],
+                message: [d.department, d.title].filter(Boolean).join(' / ') || null,
+                address: d.address || null,
+                assignedTo: currentUser?.name || null,
+                statusUpdatedAt: now,
+            } as any;
+            await onCreateExistingCustomerLead(newLead);
+        }
+        addToast(`${extractedLeads.length}件のリードをインポートしました。`, 'success');
+        onRefresh();
     };
 
     const isHandled = (lead: Lead) => lead.status !== LeadStatus.Untouched;
@@ -449,6 +473,13 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                             </div>
                         )}
                     </div>
+                    <button
+                        onClick={() => setIsPdfImportOpen(true)}
+                        className="px-3 py-1.5 rounded-lg text-sm font-semibold border bg-amber-500 text-white border-amber-500 hover:bg-amber-600 flex items-center gap-2"
+                    >
+                        <Upload className="w-4 h-4" />
+                        PDFインポート
+                    </button>
                 </div>
                 <div className="flex items-center p-1 bg-slate-200 dark:bg-slate-700 rounded-lg self-end md:self-auto">
                     <button onClick={() => setViewMode('list')} className={`px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-2 ${viewMode === 'list' ? 'bg-white dark:bg-slate-800 shadow text-slate-800 dark:text-white' : 'text-slate-500 dark:text-slate-300'}`}>
@@ -685,6 +716,13 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                     }
                 }}
                 initialAiTab={initialAiTab}
+            />
+
+            <LeadPdfImportModal
+                isOpen={isPdfImportOpen}
+                onClose={() => setIsPdfImportOpen(false)}
+                onImport={handlePdfLeadImport}
+                addToast={addToast}
             />
         </>
     );
