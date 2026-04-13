@@ -29,10 +29,10 @@ interface LeadManagementPageProps {
   customers: Customer[]; // 既存顧客リスト
   onCreateExistingCustomerLead: (leadData: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   onNavigate?: (page: string) => void; // ナビゲーション用
-  orderedCustomerNames?: Set<string>; // 受注済み顧客名セット（lead_to_cash_viewから取得）
+  orderedLeadIds?: Set<string>; // 受注済みリードIDセット（lead_to_cash_viewから取得）
 }
 
-const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTerm, onRefresh, onUpdateLead, onDeleteLead, addToast, requestConfirmation, currentUser, isAIOff, onAddEstimate, customers, onCreateExistingCustomerLead, onNavigate, orderedCustomerNames }) => {
+const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTerm, onRefresh, onUpdateLead, onDeleteLead, addToast, requestConfirmation, currentUser, isAIOff, onAddEstimate, customers, onCreateExistingCustomerLead, onNavigate, orderedLeadIds }) => {
     const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'updatedAt', direction: 'descending' });
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -322,7 +322,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
     };
 
     const renderOrderBadge = (lead: Lead) => {
-        const isOrdered = orderedCustomerNames?.has(lead.company || '') ?? false;
+        const isOrdered = orderedLeadIds?.has(lead.id) ?? false;
         return (
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
                 isOrdered
@@ -656,7 +656,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                     </div>
                 </div>
             ) : (
-                <LeadKanbanView leads={filteredLeads} onUpdateLead={onUpdateLead} onCardClick={handleRowClick} orderedCustomerNames={orderedCustomerNames} />
+                <LeadKanbanView leads={filteredLeads} onUpdateLead={onUpdateLead} onCardClick={handleRowClick} orderedLeadIds={orderedLeadIds} />
             )}
             <LeadDetailModal
                 isOpen={isModalOpen}
