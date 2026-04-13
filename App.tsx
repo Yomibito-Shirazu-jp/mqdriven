@@ -483,7 +483,7 @@ const App: React.FC = () => {
     const [accountItems, setAccountItems] = useState<AccountItem[]>([]);
     const [paymentRecipients, setPaymentRecipients] = useState<PaymentRecipient[]>([]);
     const [leads, setLeads] = useState<Lead[]>([]);
-    const [orderedLeadIds, setOrderedLeadIds] = useState<Set<string>>(new Set());
+    const [orderedCompanyNames, setOrderedCompanyNames] = useState<Set<string>>(new Set());
     const [approvalRoutes, setApprovalRoutes] = useState<ApprovalRoute[]>([]);
     const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
     const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
@@ -1126,7 +1126,7 @@ const App: React.FC = () => {
             if (accountItemsResult.status === 'fulfilled') setAccountItems(accountItemsResult.value); else console.error('Failed to load account items:', accountItemsResult.reason);
             if (leadsResult.status === 'fulfilled') {
                 setLeads(leadsResult.value);
-                dataService.getOrderedLeadIds().then(setOrderedLeadIds).catch(() => {});
+                dataService.getOrderedCompanyNames().then(setOrderedCompanyNames).catch(() => {});
             } else console.error('Failed to load leads:', leadsResult.reason);
             if (routesResult.status === 'fulfilled') setApprovalRoutes(routesResult.value); else console.error('Failed to load approval routes:', routesResult.reason);
             if (poResult.status === 'fulfilled') setPurchaseOrders(poResult.value); else console.error('Failed to load purchase orders:', poResult.reason);
@@ -1471,7 +1471,7 @@ const App: React.FC = () => {
                     onAddEstimate={handleAddEstimate}
                     customers={customers}
                     onNavigate={handleNavigate}
-                    orderedLeadIds={orderedLeadIds}
+                    orderedCompanyNames={orderedCompanyNames}
                     onCreateExistingCustomerLead={async (leadData) => {
                         await dataService.addLead(leadData);
                         await loadAllData();

@@ -2258,25 +2258,48 @@ export const getLeads = async (): Promise<Lead[]> => {
 };
 
 /**
- * 受注済みリードIDのセットを返す。
- * lead_to_cash_view の first_order_date が存在する（= orders_v2 に紐付く受注がある）
- * リードIDを収集し、リード管理画面で「受注済」バッジを表示するために使う。
+ * 受注済み顧客名のセットを返す。
+ *
+ * リード管理は旧 leads テーブル、lead_to_cash_view は leads_v2 ベースで
+ * ID が一致しないため、**顧客名マッチ**でバッジを出す。
+ *
+ * データ源は2つ（OR 結合）:
+ *  - estimates テーブルの status='2'（convertEstimateToOrder で受注化済み）
+ *  - orders テーブルの client_custmer（旧受注レコード）
  */
-export const getOrderedLeadIds = async (): Promise<Set<string>> => {
+export const getOrderedCompanyNames = async (): Promise<Set<string>> => {
     const supabase = getSupabase();
-    const { data, error } = await supabase
-        .from('lead_to_cash_view')
-        .select('lead_id, first_order_date')
-        .not('first_order_date', 'is', null);
-    if (error) {
-        console.warn('Failed to fetch ordered lead IDs:', error);
-        return new Set();
+    const names = new Set<string>();
+
+    // 1. estimates テーブルで受注済み (status='2')
+    const { data: estData, error: estErr } = await supabase
+        .from('estimates')
+        .select('customer_name')
+        .eq('status', '2');
+    if (estErr) {
+        console.warn('Failed to fetch ordered estimates:', estErr);
+    } else {
+        for (const r of estData || []) {
+            const n = typeof r.customer_name === 'string' ? r.customer_name.trim() : '';
+            if (n) names.add(n);
+        }
     }
-    return new Set(
-        (data || [])
-            .map((r: any) => (typeof r.lead_id === 'string' ? r.lead_id : ''))
-            .filter(Boolean)
-    );
+
+    // 2. orders テーブルの顧客名
+    const { data: ordData, error: ordErr } = await supabase
+        .from('orders')
+        .select('client_custmer')
+        .limit(500);
+    if (ordErr) {
+        console.warn('Failed to fetch orders for company names:', ordErr);
+    } else {
+        for (const r of ordData || []) {
+            const n = typeof r.client_custmer === 'string' ? r.client_custmer.trim() : '';
+            if (n) names.add(n);
+        }
+    }
+
+    return names;
 };
 
 export const addLead = async (leadData: Partial<Lead>): Promise<Lead> => {
@@ -3918,15 +3941,16 @@ export const findSimilarEstimates = async (
     const halfLimit = Math.ceil(limit / 2);
 
     // 1. 同一顧客の過去実績（リピート価格帯の参考）
+    // estimates テーブル（旧スキーマ）に specification, copies, customer_name 等がある
     if (customerName) {
         const { data } = await supabase
-            .from('lead_to_cash_view')
-            .select('specification, copies, unit_price, total, customer_name, p_project_name, order_flg')
+            .from('estimates')
+            .select('specification, copies, unit_price, total, customer_name, pattern_name, order_flg')
             .ilike('customer_name', `%${customerName}%`)
             .not('total', 'is', null)
-            .order('created_at', { ascending: false })
+            .order('create_date', { ascending: false })
             .limit(halfLimit);
-        if (data) results.push(...data.map((r: any) => mapRow(r, 'customer')));
+        if (data) results.push(...data.map((r: any) => mapRow({ ...r, p_project_name: r.pattern_name }, 'customer')));
     }
 
     // 2. 仕様キーワードで検索（AIが抽出した印刷業界用語）
@@ -3937,18 +3961,18 @@ export const findSimilarEstimates = async (
         if (!kw || kw.length < 1 || results.length >= limit) break;
         const batchSize = Math.max(3, Math.ceil(specLimit / Math.min(specKeywords.length, 6)));
         const { data } = await supabase
-            .from('lead_to_cash_view')
-            .select('specification, copies, unit_price, total, customer_name, p_project_name, order_flg')
+            .from('estimates')
+            .select('specification, copies, unit_price, total, customer_name, pattern_name, order_flg')
             .ilike('specification', `%${kw}%`)
             .not('total', 'is', null)
-            .order('created_at', { ascending: false })
+            .order('create_date', { ascending: false })
             .limit(batchSize);
         if (data) {
             for (const r of data) {
                 const key = `${r.specification}-${r.copies}-${r.total}`;
                 if (!seen.has(key)) {
                     seen.add(key);
-                    results.push(mapRow(r, 'spec'));
+                    results.push(mapRow({ ...r, p_project_name: r.pattern_name }, 'spec'));
                 }
             }
         }
