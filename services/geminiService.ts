@@ -658,6 +658,137 @@ export const extractInvoiceDetails = async (
   });
 };
 
+// ── 見積書PDF読み取り ──────────────────────────────────────
+export interface ExtractedEstimate {
+  customerName: string;
+  title: string;
+  specification: string;
+  copies: number;
+  unitPrice: number;
+  taxRate: number;
+  subtotal: number;
+  taxAmount: number;
+  total: number;
+  deliveryPlace: string;
+  deliveryDate: string;
+  expirationDate: string;
+  transactionMethod: string;
+  notes: string;
+  items: {
+    description: string;
+    quantity: number;
+    unit: string;
+    unitPrice: number;
+    amount: number;
+  }[];
+}
+
+const extractEstimateSchema = {
+  type: Type.OBJECT,
+  properties: {
+    customerName: { type: Type.STRING, description: "宛先（顧客名）。" },
+    title: { type: Type.STRING, description: "見積件名・タイトル。" },
+    specification: { type: Type.STRING, description: "仕様 (サイズ・用紙・色数等をまとめた文字列)。" },
+    copies: { type: Type.NUMBER, description: "部数。見つからなければ0。" },
+    unitPrice: { type: Type.NUMBER, description: "単価。見つからなければ0。" },
+    taxRate: { type: Type.NUMBER, description: "消費税率 (例: 10)。" },
+    subtotal: { type: Type.NUMBER, description: "税抜小計。" },
+    taxAmount: { type: Type.NUMBER, description: "消費税額。" },
+    total: { type: Type.NUMBER, description: "税込合計。" },
+    deliveryPlace: { type: Type.STRING, description: "納品場所。" },
+    deliveryDate: { type: Type.STRING, description: "納品日 (YYYY-MM-DD)。" },
+    expirationDate: { type: Type.STRING, description: "見積有効期限 (YYYY-MM-DD)。" },
+    transactionMethod: { type: Type.STRING, description: "取引条件・支払条件。" },
+    notes: { type: Type.STRING, description: "備考。" },
+    items: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          description: { type: Type.STRING, description: "明細の品名・内容。" },
+          quantity: { type: Type.NUMBER, description: "数量。" },
+          unit: { type: Type.STRING, description: "単位 (式,枚,部 等)。" },
+          unitPrice: { type: Type.NUMBER, description: "単価。" },
+          amount: { type: Type.NUMBER, description: "金額。" },
+        },
+      },
+    },
+  },
+  required: ["title", "total"],
+};
+
+export const extractEstimateFromPdf = async (
+  base64: string,
+  mimeType: string
+): Promise<ExtractedEstimate> => {
+  const ai = checkOnlineAndAIOff();
+  return withRetry(async () => {
+    const imagePart = { inlineData: { data: base64, mimeType } };
+    const textPart = {
+      text: `この画像/PDFから見積書の情報をJSONで抽出してください。
+
+厳格なルール：
+1. 純粋なJSONのみを返す。説明・挨拶は不要。
+2. 宛先(customerName)を抽出。「御中」「様」は除去。
+3. 見積件名(title)を抽出。
+4. 仕様(specification): サイズ・用紙・色数・加工等があれば1行にまとめる。
+5. 部数(copies), 単価(unitPrice)があれば抽出。
+6. 税率(taxRate): 通常10。軽減税率8の場合はそれを使用。
+7. 小計(subtotal), 消費税(taxAmount), 合計(total)を抽出。
+8. 納品場所(deliveryPlace), 納品日(deliveryDate: YYYY-MM-DD), 有効期限(expirationDate: YYYY-MM-DD)を抽出。
+9. 取引条件(transactionMethod), 備考(notes)を抽出。
+10. 明細行(items): 各行の品名・数量・単位・単価・金額を個別に抽出。`,
+    };
+    const response = await ai.models.generateContent({
+      model: invoiceOcrModel,
+      contents: { parts: [imagePart, textPart] },
+      config: { responseSchema: extractEstimateSchema },
+    });
+    const rawText = response.text.trim();
+    const jsonStr = stripCodeFences(rawText);
+    try {
+      const parsed = JSON.parse(jsonStr);
+      const removeCurrency = (v: any): number => {
+        if (!v) return 0;
+        return Number(String(v).replace(/[円,\s]/g, '').replace(/[^0-9.-]/g, '')) || 0;
+      };
+      const convertDate = (d: string): string => {
+        if (!d) return '';
+        const m = d.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+        if (m) return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+        return d;
+      };
+      return {
+        customerName: parsed.customerName || '',
+        title: parsed.title || '',
+        specification: parsed.specification || '',
+        copies: removeCurrency(parsed.copies),
+        unitPrice: removeCurrency(parsed.unitPrice),
+        taxRate: parsed.taxRate ?? 10,
+        subtotal: removeCurrency(parsed.subtotal),
+        taxAmount: removeCurrency(parsed.taxAmount),
+        total: removeCurrency(parsed.total),
+        deliveryPlace: parsed.deliveryPlace || '',
+        deliveryDate: convertDate(parsed.deliveryDate || ''),
+        expirationDate: convertDate(parsed.expirationDate || ''),
+        transactionMethod: parsed.transactionMethod || '',
+        notes: parsed.notes || '',
+        items: (parsed.items || []).map((it: any) => ({
+          description: it.description || '',
+          quantity: removeCurrency(it.quantity) || 1,
+          unit: it.unit || '式',
+          unitPrice: removeCurrency(it.unitPrice),
+          amount: removeCurrency(it.amount),
+        })),
+      };
+    } catch (e) {
+      const cleaned = rawText.replace(/^```json\s*\n/, '').replace(/\n```$/, '').trim();
+      try { return JSON.parse(cleaned); }
+      catch { throw new Error(`見積書PDFの解析に失敗しました: ${rawText}`); }
+    }
+  });
+};
+
 const businessCardSchema = {
   type: Type.OBJECT,
   properties: {
