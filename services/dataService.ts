@@ -2258,23 +2258,23 @@ export const getLeads = async (): Promise<Lead[]> => {
 };
 
 /**
- * 受注済み顧客名のセットを返す。
- * lead_to_cash_view の order_flg='1' を持つ顧客名を収集し、
- * リード管理画面で lead.company とマッチして「受注済」バッジを表示するために使う。
+ * 受注済みリードIDのセットを返す。
+ * lead_to_cash_view の first_order_date が存在する（= orders_v2 に紐付く受注がある）
+ * リードIDを収集し、リード管理画面で「受注済」バッジを表示するために使う。
  */
-export const getOrderedCustomerNames = async (): Promise<Set<string>> => {
+export const getOrderedLeadIds = async (): Promise<Set<string>> => {
     const supabase = getSupabase();
     const { data, error } = await supabase
         .from('lead_to_cash_view')
-        .select('customer_name')
-        .eq('order_flg', '1');
+        .select('lead_id, first_order_date')
+        .not('first_order_date', 'is', null);
     if (error) {
-        console.warn('Failed to fetch ordered customer names:', error);
+        console.warn('Failed to fetch ordered lead IDs:', error);
         return new Set();
     }
     return new Set(
         (data || [])
-            .map((r: any) => (typeof r.customer_name === 'string' ? r.customer_name.trim() : ''))
+            .map((r: any) => (typeof r.lead_id === 'string' ? r.lead_id : ''))
             .filter(Boolean)
     );
 };
