@@ -494,21 +494,21 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
             {viewMode === 'list' ? (
                 <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm overflow-hidden">
                     <div className="overflow-x-auto overflow-y-auto max-h-[70vh]">
-                        <table className="w-full text-base text-left text-slate-500 dark:text-slate-400 min-w-[1200px]">
+                        <table className="w-full text-sm text-left text-slate-500 dark:text-slate-400">
                             <thead className="text-sm text-slate-700 uppercase bg-slate-50 dark:bg-slate-700 dark:text-slate-300">
                                 <tr>
                                     <SortableHeader sortKey="updatedAt" label="最終更新日時" sortConfig={sortConfig} requestSort={requestSort} />
                                     <SortableHeader sortKey="company" label="会社名 / 担当者" sortConfig={sortConfig} requestSort={requestSort} />
                                     <SortableHeader sortKey="assignedTo" label="対応者" sortConfig={sortConfig} requestSort={requestSort} />
-                                    <th scope="col" className="px-6 py-3 font-medium text-left">対応フラグ</th>
-                                    <th scope="col" className="px-6 py-3 font-medium text-center whitespace-nowrap">企業調査</th>
-                                    <th scope="col" className="px-6 py-3 font-medium text-center whitespace-nowrap">見積</th>
-                                    <th scope="col" className="px-6 py-3 font-medium text-center whitespace-nowrap">受注</th>
-                                    <th scope="col" className="px-6 py-3 font-medium text-center whitespace-nowrap">顧客種別</th>
+                                    <th scope="col" className="px-3 py-2 font-medium text-left">対応フラグ</th>
+                                    <th scope="col" className="px-3 py-2 font-medium text-center whitespace-nowrap">企業調査</th>
+                                    <th scope="col" className="px-3 py-2 font-medium text-center whitespace-nowrap">見積</th>
+                                    <th scope="col" className="px-3 py-2 font-medium text-center whitespace-nowrap">受注</th>
+                                    <th scope="col" className="px-3 py-2 font-medium text-center whitespace-nowrap">顧客種別</th>
                                     <SortableHeader sortKey="status" label="ステータス" sortConfig={sortConfig} requestSort={requestSort} />
                                     <SortableHeader sortKey="inquiryTypes" label="問い合わせ種別" sortConfig={sortConfig} requestSort={requestSort} />
-                                    <th scope="col" className="px-6 py-3 font-medium text-center whitespace-nowrap">次のアクション</th>
-                                    <th scope="col" className="px-6 py-3 font-medium text-center">操作</th>
+                                    <th scope="col" className="px-3 py-2 font-medium text-center whitespace-nowrap">次のアクション</th>
+                                    <th scope="col" className="px-3 py-2 font-medium text-center">操作</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -518,13 +518,13 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                       className="group bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 cursor-pointer odd:bg-slate-50 dark:odd:bg-slate-800/50"
                                       onClick={() => handleRowClick(lead)}
                                     >
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm">{formatDateTime(lead.updatedAt || lead.createdAt)}</td>
-                                        <td className="px-6 py-4">
+                                        <td className="px-3 py-2.5 whitespace-nowrap text-sm">{formatDateTime(lead.updatedAt || lead.createdAt)}</td>
+                                        <td className="px-3 py-2.5">
                                             <div className="font-semibold text-slate-800 dark:text-slate-200">
                                                 {lead.company} <span className="font-normal text-slate-500">/ {lead.name}</span>
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                        <td className="px-3 py-2.5 whitespace-nowrap text-sm">
                                             <div className="flex items-center gap-2">
                                                 <span className="text-slate-700 dark:text-slate-300">{lead.assignedTo || '-'}</span>
                                                 {lead.statusUpdatedAt && (
@@ -532,7 +532,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                        <td className="px-3 py-2.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                             <button
                                                 onClick={(e) => handleToggleHandled(e, lead)}
                                                 className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition ${
@@ -550,10 +550,10 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                                 {isHandled(lead) ? '対応済' : '未対応'}
                                             </button>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                        <td className="px-3 py-2.5 whitespace-nowrap text-center">
                                             {renderInvestigationBadge(lead)}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                        <td className="px-3 py-2.5 whitespace-nowrap text-center">
                                             <div className="flex flex-col items-center gap-1">
                                                 {renderEstimateBadge(lead)}
                                                 {(() => {
@@ -567,10 +567,10 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                                 })()}
                                             </div>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                        <td className="px-3 py-2.5 whitespace-nowrap text-center">
                                             {renderOrderBadge(lead)}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                                        <td className="px-3 py-2.5 whitespace-nowrap text-center">
                                             {lead.isExistingCustomer ? (
                                                 <div className="flex flex-col items-center gap-1">
                                                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-200">
@@ -589,7 +589,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                                        <td className="px-3 py-2.5 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                                             {editingStatusLeadId === lead.id ? (
                                                 <select
                                                     value={lead.status}
@@ -624,13 +624,13 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                                 </button>
                                             )}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap">
+                                        <td className="px-3 py-2.5 whitespace-nowrap">
                                             {lead.inquiryTypes && lead.inquiryTypes.length > 0
                                                 ? <div className="flex flex-wrap gap-1">{lead.inquiryTypes.slice(0, 2).map(type => <span key={type} className="px-2 py-0.5 text-xs rounded-full bg-slate-200 dark:bg-slate-600">{type}</span>)}</div>
                                                 : (lead.inquiryType || '-')
                                             }
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
+                                        <td className="px-3 py-2.5 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
                                             {(() => {
                                                 const action = getNextAction(lead);
                                                 return (
@@ -649,7 +649,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                                 );
                                             })()}
                                         </td>
-                                        <td className="px-6 py-4 text-center">
+                                        <td className="px-3 py-2.5 text-center">
                                             <div className="flex justify-center items-center opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100" onClick={e => e.stopPropagation()}>
                                                 <DropdownMenu>
                                                     <DropdownMenuItem onClick={() => handleRowClick(lead)}>
