@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Estimate, SortConfig, EmployeeUser, Customer, Toast, EstimateStatus, EstimateDetail } from '../../types';
 import SortableHeader from '../ui/SortableHeader';
 import EmptyState from '../ui/EmptyState';
-import { FileText, PlusCircle, Pencil, X, Loader, Save, Calculator, CheckCircle, Upload, AlertTriangle } from '../Icons';
+import { FileText, PlusCircle, Pencil, X, Loader, Save, Calculator, CheckCircle, Upload } from '../Icons';
 import { formatJPY, formatDate } from '../../utils';
 import EstimateDetailModal from './EstimateDetailModal';
 import { addEstimateDetail, deleteEstimateDetail, getEstimateDetails, updateEstimateDetail, convertEstimateToOrder } from '../../services/dataService';
-import { extractEstimateFromPdf, ExtractedEstimate } from '../../services/geminiService';
+import { ExtractedEstimate } from '../../services/geminiService';
+import EstimatePdfImportModal from '../EstimatePdfImportModal';
 import CustomerMQAnalysis from './CustomerMQAnalysis';
 import {
     BarChart,
@@ -315,226 +316,6 @@ const EstimateModal: React.FC<EstimateModalProps> = ({ isOpen, onClose, onSave, 
     );
 };
 
-// ── PDF見積インポート ──────────────────────────────────
-const readFileAsBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            if (typeof reader.result === 'string') resolve(reader.result.split(',')[1]);
-            else reject(new Error('ファイル読み取りに失敗しました。'));
-        };
-        reader.onerror = (err) => reject(err);
-        reader.readAsDataURL(file);
-    });
-
-type ImportItem = {
-    id: string;
-    fileName: string;
-    fileUrl: string;
-    mimeType: string;
-    status: 'processing' | 'done' | 'error';
-    data: ExtractedEstimate | null;
-    errorMessage: string | null;
-};
-
-interface EstimatePdfImportModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    onImport: (estimates: Partial<Estimate>[]) => Promise<void>;
-    addToast: (message: string, type: Toast['type']) => void;
-}
-
-const EstimatePdfImportModal: React.FC<EstimatePdfImportModalProps> = ({ isOpen, onClose, onImport, addToast }) => {
-    const [items, setItems] = useState<ImportItem[]>([]);
-    const [isUploading, setIsUploading] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
-    const processFile = async (file: File) => {
-        const tempId = `pdf_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        const item: ImportItem = {
-            id: tempId,
-            fileName: file.name,
-            fileUrl: URL.createObjectURL(file),
-            mimeType: file.type,
-            status: 'processing',
-            data: null,
-            errorMessage: null,
-        };
-        setItems(prev => [...prev, item]);
-        try {
-            const base64 = await readFileAsBase64(file);
-            const data = await extractEstimateFromPdf(base64, file.type);
-            setItems(prev => prev.map(i => i.id === tempId ? { ...i, status: 'done' as const, data } : i));
-        } catch (err: any) {
-            setItems(prev => prev.map(i => i.id === tempId ? { ...i, status: 'error' as const, errorMessage: err.message || '解析に失敗しました。' } : i));
-        }
-    };
-
-    const handleFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
-        if (!files.length) return;
-        setIsUploading(true);
-        try {
-            await Promise.all(files.map(f => processFile(f)));
-        } finally {
-            setIsUploading(false);
-            e.target.value = '';
-        }
-    };
-
-    const removeItem = (id: string) => {
-        setItems(prev => {
-            const item = prev.find(i => i.id === id);
-            if (item?.fileUrl) URL.revokeObjectURL(item.fileUrl);
-            return prev.filter(i => i.id !== id);
-        });
-    };
-
-    const doneItems = items.filter(i => i.status === 'done' && i.data);
-
-    const handleImportAll = async () => {
-        if (!doneItems.length) return;
-        setIsSaving(true);
-        try {
-            const payloads: Partial<Estimate>[] = doneItems.map(item => {
-                const d = item.data!;
-                const subtotal = d.subtotal || (d.copies && d.unitPrice ? d.copies * d.unitPrice : 0);
-                const taxAmount = d.taxAmount || Math.floor(subtotal * (d.taxRate || 10) / 100);
-                const total = d.total || subtotal + taxAmount;
-                return {
-                    title: d.title,
-                    customerName: d.customerName,
-                    specification: d.specification,
-                    copies: String(d.copies || 0),
-                    unit_price: String(d.unitPrice || 0),
-                    tax_rate: String(d.taxRate || 10),
-                    subtotal: String(subtotal),
-                    consumption: String(taxAmount),
-                    total: String(total),
-                    delivery_place: d.deliveryPlace,
-                    delivery_date: d.deliveryDate || null,
-                    expiration_date: d.expirationDate || null,
-                    transaction_method: d.transactionMethod,
-                    notes: d.notes,
-                    status: EstimateStatus.Draft,
-                    estimateNumber: Date.now(),
-                    items: d.items.map(it => ({
-                        division: 'その他',
-                        content: it.description,
-                        quantity: it.quantity,
-                        unit: it.unit,
-                        unitPrice: it.unitPrice,
-                        price: it.amount,
-                        subtotal: it.amount,
-                    })),
-                };
-            });
-            await onImport(payloads);
-            addToast(`${payloads.length}件の見積をインポートしました。`, 'success');
-            setItems([]);
-            onClose();
-        } catch (err: any) {
-            addToast(`インポートに失敗しました: ${err.message}`, 'error');
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
-                <div className="flex justify-between items-center p-6 border-b border-slate-200 dark:border-slate-700">
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">PDFから見積インポート</h2>
-                    <button onClick={() => { items.forEach(i => i.fileUrl && URL.revokeObjectURL(i.fileUrl)); setItems([]); onClose(); }} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X className="w-6 h-6" /></button>
-                </div>
-
-                <div className="p-6 overflow-y-auto flex-1 space-y-4">
-                    <div className="flex items-center gap-3">
-                        <label className={`inline-flex items-center gap-2 bg-blue-600 text-white font-semibold py-2.5 px-5 rounded-lg shadow-md hover:bg-blue-700 cursor-pointer transition-colors ${isUploading ? 'opacity-60 pointer-events-none' : ''}`}>
-                            <Upload className="w-5 h-5" />
-                            <span>PDFファイルを選択</span>
-                            <input
-                                ref={fileInputRef}
-                                type="file"
-                                className="sr-only"
-                                accept="application/pdf,image/png,image/jpeg,image/webp"
-                                multiple
-                                onChange={handleFiles}
-                                disabled={isUploading}
-                            />
-                        </label>
-                        <span className="text-sm text-slate-500">PDF・画像ファイルを1つまたは複数選択できます</span>
-                    </div>
-
-                    {items.length === 0 && (
-                        <div className="text-center py-12 text-slate-400">
-                            <FileText className="w-16 h-16 mx-auto mb-3 opacity-40" />
-                            <p>PDFファイルをアップロードすると、AIが見積内容を自動読み取りします。</p>
-                        </div>
-                    )}
-
-                    {items.map(item => (
-                        <div key={item.id} className={`border rounded-xl p-4 ${item.status === 'error' ? 'border-red-300 bg-red-50 dark:bg-red-900/20' : item.status === 'done' ? 'border-green-300 bg-green-50 dark:bg-green-900/10' : 'border-slate-200 bg-slate-50 dark:bg-slate-700/30'}`}>
-                            <div className="flex items-start justify-between gap-3">
-                                <div className="flex items-center gap-3 min-w-0">
-                                    {item.status === 'processing' && <Loader className="w-5 h-5 animate-spin text-blue-500 flex-shrink-0" />}
-                                    {item.status === 'done' && <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />}
-                                    {item.status === 'error' && <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />}
-                                    <span className="text-sm font-medium truncate">{item.fileName}</span>
-                                    {item.status === 'processing' && <span className="text-xs text-slate-500">AIが解析中...</span>}
-                                </div>
-                                <button onClick={() => removeItem(item.id)} className="text-slate-400 hover:text-red-500 flex-shrink-0"><X className="w-4 h-4" /></button>
-                            </div>
-                            {item.status === 'error' && (
-                                <p className="mt-2 text-sm text-red-600">{item.errorMessage}</p>
-                            )}
-                            {item.status === 'done' && item.data && (
-                                <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                                    <div>
-                                        <span className="text-slate-500">顧客名</span>
-                                        <p className="font-medium">{item.data.customerName || '—'}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-500">件名</span>
-                                        <p className="font-medium">{item.data.title || '—'}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-500">合計金額</span>
-                                        <p className="font-medium">{formatJPY(item.data.total)}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-slate-500">明細数</span>
-                                        <p className="font-medium">{item.data.items?.length || 0}件</p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    ))}
-                </div>
-
-                <div className="flex justify-between items-center p-6 border-t border-slate-200 dark:border-slate-700">
-                    <span className="text-sm text-slate-500">
-                        {doneItems.length > 0 ? `${doneItems.length}件の見積を読み取り済み` : ''}
-                    </span>
-                    <div className="flex gap-3">
-                        <button onClick={() => { items.forEach(i => i.fileUrl && URL.revokeObjectURL(i.fileUrl)); setItems([]); onClose(); }} className="px-4 py-2 rounded-lg font-semibold text-slate-600 hover:bg-slate-100">キャンセル</button>
-                        <button
-                            onClick={handleImportAll}
-                            disabled={!doneItems.length || isSaving}
-                            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-5 py-2 rounded-lg flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                        >
-                            {isSaving ? <Loader className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                            {isSaving ? 'インポート中...' : `${doneItems.length}件をインポート`}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
 
 const EstimateManagementPage: React.FC<EstimateManagementPageProps> = ({
     estimates,
@@ -1024,10 +805,40 @@ const EstimateManagementPage: React.FC<EstimateManagementPageProps> = ({
         }
     };
 
-    const handlePdfImport = async (payloads: Partial<Estimate>[]) => {
-        for (const payload of payloads) {
-            await onAddEstimate(payload);
+    const handlePdfImport = async (extractedList: ExtractedEstimate[]) => {
+        for (const d of extractedList) {
+            const subtotal = d.subtotal || (d.copies && d.unitPrice ? d.copies * d.unitPrice : 0);
+            const taxAmount = d.taxAmount || Math.floor(subtotal * (d.taxRate || 10) / 100);
+            const total = d.total || subtotal + taxAmount;
+            await onAddEstimate({
+                title: d.title,
+                customerName: d.customerName,
+                specification: d.specification,
+                copies: String(d.copies || 0),
+                unit_price: String(d.unitPrice || 0),
+                tax_rate: String(d.taxRate || 10),
+                subtotal: String(subtotal),
+                consumption: String(taxAmount),
+                total: String(total),
+                delivery_place: d.deliveryPlace,
+                delivery_date: d.deliveryDate || null,
+                expiration_date: d.expirationDate || null,
+                transaction_method: d.transactionMethod,
+                notes: d.notes,
+                status: EstimateStatus.Draft,
+                estimateNumber: Date.now(),
+                items: d.items.map(it => ({
+                    division: 'その他',
+                    content: it.description,
+                    quantity: it.quantity,
+                    unit: it.unit,
+                    unitPrice: it.unitPrice,
+                    price: it.amount,
+                    subtotal: it.amount,
+                })),
+            });
         }
+        addToast(`${extractedList.length}件の見積をインポートしました。`, 'success');
     };
 
     const openQuickView = async (est: Estimate) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     Save,
     Send,
@@ -15,12 +15,11 @@ import {
     Sparkles,
     AlertTriangle,
     Upload,
-    Loader2,
-    X
-} from 'lucide-react';
+} from '../Icons';
 import { Customer, Estimate, Project, EstimateDetail, Toast } from '../../types';
 import * as dataService from '../../services/dataService';
-import { extractEstimateFromPdf, ExtractedEstimate } from '../../services/geminiService';
+import EstimatePdfImportModal from '../EstimatePdfImportModal';
+import { ExtractedEstimate } from '../../services/geminiService';
 
 // ---------- Types ----------
 interface ItemDetail {
@@ -77,25 +76,6 @@ const createEmptyItem = (): ItemDetail => ({
     mRate: 0,
 });
 
-const readFileAsBase64 = (file: File): Promise<string> =>
-    new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-            if (typeof reader.result === 'string') resolve(reader.result.split(',')[1]);
-            else reject(new Error('ファイル読み取りに失敗しました。'));
-        };
-        reader.onerror = (err) => reject(err);
-        reader.readAsDataURL(file);
-    });
-
-type PdfImportItem = {
-    id: string;
-    fileName: string;
-    status: 'processing' | 'done' | 'error';
-    data: ExtractedEstimate | null;
-    errorMessage: string | null;
-};
-
 const calcMRate = (amount: number, vq: number): number => {
     if (amount <= 0) return 0;
     const mq = amount - vq;
@@ -116,9 +96,6 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
 
     // PDF import
     const [showPdfImport, setShowPdfImport] = useState(false);
-    const [pdfImportItems, setPdfImportItems] = useState<PdfImportItem[]>([]);
-    const [isPdfUploading, setIsPdfUploading] = useState(false);
-    const pdfFileRef = useRef<HTMLInputElement>(null);
 
     // Basic info
     const [formData, setFormData] = useState({
@@ -322,36 +299,10 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
     };
 
     // ---------- PDF Import ----------
-    const processPdfFile = async (file: File) => {
-        const tempId = `pdf_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-        setPdfImportItems(prev => [...prev, { id: tempId, fileName: file.name, status: 'processing', data: null, errorMessage: null }]);
-        try {
-            const base64 = await readFileAsBase64(file);
-            const data = await extractEstimateFromPdf(base64, file.type);
-            setPdfImportItems(prev => prev.map(i => i.id === tempId ? { ...i, status: 'done' as const, data } : i));
-        } catch (err: any) {
-            setPdfImportItems(prev => prev.map(i => i.id === tempId ? { ...i, status: 'error' as const, errorMessage: err.message || '解析に失敗しました。' } : i));
-        }
-    };
+    const handlePdfImportApply = (extractedList: ExtractedEstimate[]) => {
+        if (!extractedList.length) return;
 
-    const handlePdfFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(e.target.files || []);
-        if (!files.length) return;
-        setIsPdfUploading(true);
-        try {
-            await Promise.all(files.map(f => processPdfFile(f)));
-        } finally {
-            setIsPdfUploading(false);
-            e.target.value = '';
-        }
-    };
-
-    const applyPdfImport = () => {
-        const doneItems = pdfImportItems.filter(i => i.status === 'done' && i.data);
-        if (!doneItems.length) return;
-
-        // Use first item for form header fields
-        const first = doneItems[0].data!;
+        const first = extractedList[0];
         setFormData(prev => ({
             ...prev,
             title: first.title || prev.title,
@@ -365,9 +316,8 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
             notes: first.notes || prev.notes,
         }));
 
-        // Collect all line items from all PDFs
-        const newItems: ItemDetail[] = doneItems.flatMap(di =>
-            (di.data!.items || []).map(it => ({
+        const newItems: ItemDetail[] = extractedList.flatMap(d =>
+            (d.items || []).map(it => ({
                 id: Math.random().toString(36).substr(2, 9),
                 majorCategory: 'その他',
                 middleCategory: 'その他',
@@ -388,14 +338,12 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
             setItems(prev => [...prev, ...newItems]);
         }
 
-        addToast?.(`${doneItems.length}件のPDFから${newItems.length}件の明細をインポートしました。`, 'success');
-        setPdfImportItems([]);
-        setShowPdfImport(false);
+        addToast?.(`${extractedList.length}件のPDFから${newItems.length}件の明細をインポートしました。`, 'success');
     };
 
     // ---------- Styles ----------
-    const labelClass = 'bg-[#005a8d] text-white px-3 py-2 text-xs font-bold w-32 flex items-center shrink-0 shadow-sm';
-    const inputClass = 'flex-1 border-2 border-[#e5e7eb] px-3 py-2 text-sm focus:border-[#005a8d] focus:outline-none transition-all';
+    const labelClass = 'bg-blue-800 text-white px-3 py-2 text-xs font-bold w-32 flex items-center shrink-0 shadow-sm';
+    const inputClass = 'flex-1 border-2 border-slate-200 px-3 py-2 text-sm focus:border-blue-800 focus:outline-none transition-all';
 
     const dateFields = [
         { label: '見積期日', key: 'estimateDate' },
@@ -408,7 +356,7 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
 
     // ---------- Render ----------
     return (
-        <div className="bg-[#f0f4f8] min-h-screen pb-20 selection:bg-blue-100">
+        <div className="bg-slate-100 min-h-screen pb-20 selection:bg-blue-100">
             {/* Header */}
             <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between sticky top-0 z-50 shadow-md">
                 <div className="flex items-center gap-6">
@@ -417,7 +365,7 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                     </button>
                     <div>
                         <h1 className="text-2xl font-black text-gray-900 tracking-tight">
-                            見積番号: <span className="text-[#005a8d]">{formData.estimateCode || '新規'}</span>
+                            見積番号: <span className="text-blue-800">{formData.estimateCode || '新規'}</span>
                         </h1>
                         <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">
                             Detailed Estimate — 仮勘定 (Provisional)
@@ -438,7 +386,7 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                     <button
                         onClick={() => handleSave('draft')}
                         disabled={isSubmitting}
-                        className="bg-[#4caf50] hover:bg-[#43a047] text-white px-6 py-2 rounded font-bold shadow-sm transition-all active:scale-95 text-sm disabled:opacity-50 flex items-center gap-2"
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2 rounded font-bold shadow-sm transition-all active:scale-95 text-sm disabled:opacity-50 flex items-center gap-2"
                     >
                         <Save className="w-4 h-4" />
                         {isSubmitting ? '保存中...' : '仮保存'}
@@ -446,7 +394,7 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                     <button
                         onClick={() => handleSave('submitted')}
                         disabled={isSubmitting}
-                        className="bg-[#337ab7] hover:bg-[#2e6da4] text-white px-6 py-2 rounded font-bold shadow-sm transition-all active:scale-95 text-sm disabled:opacity-50 flex items-center gap-2"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow-sm transition-all active:scale-95 text-sm disabled:opacity-50 flex items-center gap-2"
                     >
                         <Send className="w-4 h-4" />
                         承認依頼
@@ -521,7 +469,7 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                     {/* ====== DATES ====== */}
                     <div className="space-y-4">
                         <div className="flex items-center gap-2 mb-2">
-                            <button className="bg-[#0070c0] text-white px-3 py-1 text-sm font-bold flex items-center gap-2 rounded shadow-md">
+                            <button className="bg-blue-600 text-white px-3 py-1 text-sm font-bold flex items-center gap-2 rounded shadow-md">
                                 {formData.patternName} <Plus className="w-3 h-3" />
                             </button>
                         </div>
@@ -604,7 +552,7 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                 </div>
                 <div className="flex justify-end mt-2">
                     <div className="flex overflow-hidden rounded shadow-sm w-[33%]">
-                        <label className={`${labelClass} bg-[#005a8d] opacity-80`}>消費税込金額</label>
+                        <label className={`${labelClass} bg-blue-800 opacity-80`}>消費税込金額</label>
                         <input className={`${inputClass} font-bold text-right`} value={`¥${totals.total.toLocaleString()}`} readOnly />
                     </div>
                 </div>
@@ -612,26 +560,26 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                 {/* ====== ITEMS TABLE ====== */}
                 <div className="bg-white rounded shadow-md overflow-hidden mt-8 border border-gray-200">
                     <table className="w-full text-xs text-center border-collapse">
-                        <thead className="bg-[#005a8d] text-white">
+                        <thead className="bg-blue-800 text-white">
                             <tr>
-                                <th className="py-2 px-1 border-r border-[#004e7a] min-w-[100px]">大項目</th>
-                                <th className="py-2 px-1 border-r border-[#004e7a] min-w-[100px]">中項目</th>
-                                <th className="py-2 px-1 border-r border-[#004e7a] min-w-[60px]">サイズ</th>
-                                <th className="py-2 px-1 border-r border-[#004e7a] min-w-[200px]">詳細</th>
-                                <th className="py-2 px-1 border-r border-[#004e7a] min-w-[50px]">数量</th>
-                                <th className="py-2 px-1 border-r border-[#004e7a] min-w-[80px]">単価</th>
-                                <th className="py-2 px-1 border-r border-[#004e7a] min-w-[80px]">課税区分</th>
-                                <th className="py-2 px-1 border-r border-[#004e7a] min-w-[80px]">税区分</th>
-                                <th className="py-2 px-1 border-r border-[#004e7a] min-w-[60px]">消費税率</th>
-                                <th className="py-2 px-1 border-r border-[#004e7a] min-w-[90px]">金額</th>
-                                <th className="py-2 px-1 border-r border-[#004e7a] min-w-[80px]">VQ</th>
+                                <th className="py-2 px-1 border-r border-blue-900 min-w-[100px]">大項目</th>
+                                <th className="py-2 px-1 border-r border-blue-900 min-w-[100px]">中項目</th>
+                                <th className="py-2 px-1 border-r border-blue-900 min-w-[60px]">サイズ</th>
+                                <th className="py-2 px-1 border-r border-blue-900 min-w-[200px]">詳細</th>
+                                <th className="py-2 px-1 border-r border-blue-900 min-w-[50px]">数量</th>
+                                <th className="py-2 px-1 border-r border-blue-900 min-w-[80px]">単価</th>
+                                <th className="py-2 px-1 border-r border-blue-900 min-w-[80px]">課税区分</th>
+                                <th className="py-2 px-1 border-r border-blue-900 min-w-[80px]">税区分</th>
+                                <th className="py-2 px-1 border-r border-blue-900 min-w-[60px]">消費税率</th>
+                                <th className="py-2 px-1 border-r border-blue-900 min-w-[90px]">金額</th>
+                                <th className="py-2 px-1 border-r border-blue-900 min-w-[80px]">VQ</th>
                                 <th className="py-2 px-1 min-w-[70px]">M率</th>
                                 <th className="w-24"></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                             {items.map((item, index) => (
-                                <tr key={item.id} className="hover:bg-[#f8fafc] transition-colors">
+                                <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                                     {/* 大項目 */}
                                     <td className="p-1">
                                         <select
@@ -813,9 +761,9 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                                     <span className="text-xs font-bold text-gray-500">消費税</span>
                                     <span className="text-xl font-bold font-mono">¥{totals.tax.toLocaleString()}</span>
                                 </div>
-                                <div className="flex justify-between items-end border-t-2 border-[#005a8d] pt-2">
-                                    <span className="text-sm font-black text-[#005a8d]">合計金額</span>
-                                    <span className="text-3xl font-black font-mono text-[#005a8d]">¥{totals.total.toLocaleString()}</span>
+                                <div className="flex justify-between items-end border-t-2 border-blue-800 pt-2">
+                                    <span className="text-sm font-black text-blue-800">合計金額</span>
+                                    <span className="text-3xl font-black font-mono text-blue-800">¥{totals.total.toLocaleString()}</span>
                                 </div>
                             </div>
                             <div className="space-y-2">
@@ -848,15 +796,15 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                             </div>
                         </div>
                         <div className="mt-4">
-                            <div className="bg-[#005a8d] text-white px-4 py-1 text-xs font-bold inline-block mb-4 rounded-t">承認フロー</div>
-                            <div className="bg-[#f8fafc] border border-gray-200 p-4 rounded flex items-center gap-6">
+                            <div className="bg-blue-800 text-white px-4 py-1 text-xs font-bold inline-block mb-4 rounded-t">承認フロー</div>
+                            <div className="bg-slate-50 border border-gray-200 p-4 rounded flex items-center gap-6">
                                 <div className="text-sm font-bold text-gray-700 font-mono">橋本　昭市</div>
                             </div>
                         </div>
                     </div>
 
                     <div className="flex flex-col">
-                        <div className="bg-[#005a8d] text-white px-4 py-2 text-xs font-bold inline-block mb-4 rounded shadow-md w-24 text-center">VQグラフ</div>
+                        <div className="bg-blue-800 text-white px-4 py-2 text-xs font-bold inline-block mb-4 rounded shadow-md w-24 text-center">VQグラフ</div>
                         <div className="flex-1 flex gap-2 h-full min-h-[300px] overflow-hidden rounded-xl border border-gray-200 shadow-inner p-6 bg-gray-50">
                             {/* PQ Block */}
                             <div className="flex-1 bg-yellow-400 flex flex-col items-center justify-center p-4 rounded-lg shadow-md transition-transform hover:scale-[1.02]">
@@ -866,7 +814,7 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                             <div className="w-[45%] flex flex-col gap-2">
                                 {/* VQ Block */}
                                 <div
-                                    className="bg-[#ef9a9a] flex items-center justify-center p-3 rounded-lg shadow-md"
+                                    className="bg-red-300 flex items-center justify-center p-3 rounded-lg shadow-md"
                                     style={{ height: `${Math.max(20, Math.min(60, (totals.vq / (totals.total || 1)) * 100))}%` }}
                                 >
                                     <div className="text-center">
@@ -875,7 +823,7 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                                     </div>
                                 </div>
                                 {/* MQ Block */}
-                                <div className="flex-1 bg-[#8bc34a] flex flex-col items-center justify-center p-3 rounded-lg shadow-md">
+                                <div className="flex-1 bg-green-500 flex flex-col items-center justify-center p-3 rounded-lg shadow-md">
                                     <div className="text-center">
                                         <div className="text-3xl font-black text-white">MQ</div>
                                         <div className="text-4xl font-black font-mono text-white mt-1">{totals.mq.toLocaleString()}</div>
@@ -891,7 +839,7 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                             <button
                                 onClick={() => handleSave('draft')}
                                 disabled={isSubmitting}
-                                className="flex-1 bg-[#4caf50] hover:bg-[#43a047] text-white py-4 rounded-xl font-black text-lg shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                                className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-xl font-black text-lg shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                             >
                                 <Save className="w-5 h-5" />
                                 {isSubmitting ? '保存中...' : '仮保存（ドラフト）'}
@@ -899,7 +847,7 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                             <button
                                 onClick={() => handleSave('submitted')}
                                 disabled={isSubmitting}
-                                className="flex-1 bg-[#337ab7] hover:bg-[#2e6da4] text-white py-4 rounded-xl font-black text-lg shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
+                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-black text-lg shadow-lg transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                             >
                                 <Send className="w-5 h-5" />
                                 承認依頼
@@ -909,91 +857,12 @@ const DetailedEstimateForm: React.FC<DetailedEstimateFormProps> = ({
                 </div>
             </div>
 
-            {/* ====== PDF IMPORT MODAL ====== */}
-            {showPdfImport && (
-                <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-[100] p-4">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[80vh] flex flex-col">
-                        <div className="flex justify-between items-center p-6 border-b border-gray-200">
-                            <h2 className="text-xl font-black text-gray-900">PDFから見積インポート</h2>
-                            <button onClick={() => { setPdfImportItems([]); setShowPdfImport(false); }} className="text-gray-400 hover:text-gray-600">
-                                <X className="w-6 h-6" />
-                            </button>
-                        </div>
-                        <div className="p-6 overflow-y-auto flex-1 space-y-4">
-                            <div className="flex items-center gap-3">
-                                <label className={`inline-flex items-center gap-2 bg-[#005a8d] text-white font-bold py-2.5 px-5 rounded-lg shadow-md hover:bg-[#004e7a] cursor-pointer transition-colors ${isPdfUploading ? 'opacity-60 pointer-events-none' : ''}`}>
-                                    <Upload className="w-5 h-5" />
-                                    <span>PDFファイルを選択</span>
-                                    <input
-                                        ref={pdfFileRef}
-                                        type="file"
-                                        className="sr-only"
-                                        accept="application/pdf,image/png,image/jpeg,image/webp"
-                                        multiple
-                                        onChange={handlePdfFiles}
-                                        disabled={isPdfUploading}
-                                    />
-                                </label>
-                                <span className="text-sm text-gray-500">1つまたは複数のPDF・画像を選択</span>
-                            </div>
-
-                            {pdfImportItems.length === 0 && (
-                                <div className="text-center py-12 text-gray-400">
-                                    <FileText className="w-16 h-16 mx-auto mb-3 opacity-40" />
-                                    <p>見積書PDFをアップロードすると、AIが内容を自動で読み取ります。</p>
-                                    <p className="text-xs mt-1">読み取った内容はフォームと明細テーブルに反映されます。</p>
-                                </div>
-                            )}
-
-                            {pdfImportItems.map(item => (
-                                <div key={item.id} className={`border rounded-xl p-4 ${item.status === 'error' ? 'border-red-300 bg-red-50' : item.status === 'done' ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="flex items-center gap-3 min-w-0">
-                                            {item.status === 'processing' && <Loader2 className="w-5 h-5 animate-spin text-blue-500 flex-shrink-0" />}
-                                            {item.status === 'done' && <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />}
-                                            {item.status === 'error' && <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0" />}
-                                            <span className="text-sm font-medium truncate">{item.fileName}</span>
-                                            {item.status === 'processing' && <span className="text-xs text-gray-500">AIが解析中...</span>}
-                                        </div>
-                                        <button onClick={() => setPdfImportItems(prev => prev.filter(i => i.id !== item.id))} className="text-gray-400 hover:text-red-500 flex-shrink-0">
-                                            <X className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                    {item.status === 'error' && <p className="mt-2 text-sm text-red-600">{item.errorMessage}</p>}
-                                    {item.status === 'done' && item.data && (
-                                        <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                                            <div><span className="text-gray-500">顧客名</span><p className="font-medium">{item.data.customerName || '—'}</p></div>
-                                            <div><span className="text-gray-500">件名</span><p className="font-medium">{item.data.title || '—'}</p></div>
-                                            <div><span className="text-gray-500">合計金額</span><p className="font-medium">¥{(item.data.total || 0).toLocaleString()}</p></div>
-                                            <div><span className="text-gray-500">明細数</span><p className="font-medium">{item.data.items?.length || 0}件</p></div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                        <div className="flex justify-between items-center p-6 border-t border-gray-200">
-                            <span className="text-sm text-gray-500">
-                                {pdfImportItems.filter(i => i.status === 'done').length > 0
-                                    ? `${pdfImportItems.filter(i => i.status === 'done').length}件の読み取り完了`
-                                    : ''}
-                            </span>
-                            <div className="flex gap-3">
-                                <button onClick={() => { setPdfImportItems([]); setShowPdfImport(false); }} className="px-4 py-2 rounded-lg font-bold text-gray-600 hover:bg-gray-100">
-                                    キャンセル
-                                </button>
-                                <button
-                                    onClick={applyPdfImport}
-                                    disabled={!pdfImportItems.some(i => i.status === 'done')}
-                                    className="bg-[#005a8d] hover:bg-[#004e7a] text-white font-bold px-5 py-2 rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    <CheckCircle className="w-5 h-5" />
-                                    フォームに反映
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <EstimatePdfImportModal
+                isOpen={showPdfImport}
+                onClose={() => setShowPdfImport(false)}
+                onImport={handlePdfImportApply}
+                addToast={addToast || (() => {})}
+            />
 
             <style>{`
                 input[type="date"]::-webkit-calendar-picker-indicator {
