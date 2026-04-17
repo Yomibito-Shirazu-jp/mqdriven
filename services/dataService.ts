@@ -340,8 +340,16 @@ bank_account_type,
 bank_account_number
 `;
 
-const isMissingColumnError = (error?: PostgrestError | null) =>
-    Boolean(error?.message && /column.+does not exist/i.test(error.message));
+const isMissingColumnError = (error?: PostgrestError | null) => {
+    if (!error) return false;
+    if (error.code === 'PGRST204') return true;
+    return Boolean(
+        error.message && (
+            /column.+does not exist/i.test(error.message) ||
+            /Could not find the '([^']+)' column/i.test(error.message)
+        )
+    );
+};
 
 const mapDbPaymentRecipient = (record: any): PaymentRecipient => {
     const bankBranch = record.bank_branch ?? null;
