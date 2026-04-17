@@ -552,15 +552,16 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                     <SortableHeader sortKey="status" label="ステータス" sortConfig={sortConfig} requestSort={requestSort} className="whitespace-nowrap" />
                                     <SortableHeader sortKey="inquiryTypes" label="問い合わせ種別" sortConfig={sortConfig} requestSort={requestSort} />
                                     <th scope="col" className="px-3 py-2 font-medium text-center whitespace-nowrap">次のアクション</th>
-                                    <th scope="col" className="px-3 py-2 font-medium text-center">操作</th>
+                                    <th scope="col" className="px-3 py-2 font-medium text-center whitespace-nowrap">詳細 / 操作</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {sortedLeads.map((lead) => (
+                                {sortedLeads.map((lead) => {
+                                    const assigneeName = lead.assignedTo ?? lead.assigned_to ?? '-';
+                                    return (
                                     <tr 
                                       key={lead.id} 
-                                      className="group bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 cursor-pointer odd:bg-slate-50 dark:odd:bg-slate-800/50"
-                                      onClick={() => handleRowClick(lead)}
+                                      className="group bg-white dark:bg-slate-800 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 odd:bg-slate-50 dark:odd:bg-slate-800/50"
                                     >
                                         <td className="px-3 py-2.5 whitespace-nowrap text-sm">{formatDateTime(lead.updatedAt || lead.createdAt)}</td>
                                         <td className="px-3 py-2.5">
@@ -570,7 +571,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                         </td>
                                         <td className="px-3 py-2.5 whitespace-nowrap text-sm">
                                             <div className="flex items-center gap-2">
-                                                <span className="text-slate-700 dark:text-slate-300">{lead.assignedTo || '-'}</span>
+                                                <span className="text-slate-700 dark:text-slate-300">{assigneeName}</span>
                                                 {lead.statusUpdatedAt && (
                                                     <span className="text-xs text-slate-400 whitespace-nowrap">({formatDateTime(lead.statusUpdatedAt)})</span>
                                                 )}
@@ -693,12 +694,17 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                                 );
                                             })()}
                                         </td>
-                                        <td className="px-3 py-2.5 text-center">
-                                            <div className="flex justify-center items-center opacity-0 group-hover:opacity-100 transition-opacity focus-within:opacity-100" onClick={e => e.stopPropagation()}>
+                                        <td className="px-3 py-2.5 text-center" onClick={e => e.stopPropagation()}>
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRowClick(lead)}
+                                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
+                                                >
+                                                    <Eye className="w-3.5 h-3.5" />
+                                                    詳細
+                                                </button>
                                                 <DropdownMenu>
-                                                    <DropdownMenuItem onClick={() => handleRowClick(lead)}>
-                                                        <Eye className="w-4 h-4" /> 詳細表示
-                                                    </DropdownMenuItem>
                                                      {lead.status === LeadStatus.Untouched && (
                                                         <DropdownMenuItem onClick={(e) => handleMarkContacted(e, lead)}>
                                                             {isMarkingContacted === lead.id ? <Loader className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} コンタクト済にする
@@ -714,7 +720,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                             </div>
                                         </td>
                                     </tr>
-                                ))}
+                                )})}
                                  {sortedLeads.length === 0 && (
                                     <tr>
                                         <td colSpan={12}>
