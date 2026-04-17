@@ -47,6 +47,16 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
     const [isAddingExistingCustomerLead, setIsAddingExistingCustomerLead] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [isPdfImportOpen, setIsPdfImportOpen] = useState(false);
+    const normalizeCompanyName = (name?: string | null) => (name || '').trim().toLowerCase();
+    const normalizedOrderedCompanyNames = useMemo(() => {
+        if (!orderedCompanyNames) return null;
+        const names = new Set<string>();
+        orderedCompanyNames.forEach((name) => {
+            const normalized = normalizeCompanyName(name);
+            if (normalized) names.add(normalized);
+        });
+        return names;
+    }, [orderedCompanyNames]);
 
     const handleRowClick = (lead: Lead) => {
         setInitialAiTab(undefined);
@@ -295,8 +305,8 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                         bVal = estimateRank(b);
                         break;
                     case 'ordered':
-                        aVal = orderedCompanyNames?.has(a.company || '') ? 1 : 0;
-                        bVal = orderedCompanyNames?.has(b.company || '') ? 1 : 0;
+                        aVal = normalizedOrderedCompanyNames?.has(normalizeCompanyName(a.company)) ? 1 : 0;
+                        bVal = normalizedOrderedCompanyNames?.has(normalizeCompanyName(b.company)) ? 1 : 0;
                         break;
                     case 'customerType':
                         aVal = a.isExistingCustomer ? 1 : 0;
@@ -320,7 +330,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
             });
         }
         return sortableItems;
-    }, [filteredLeads, sortConfig, orderedCompanyNames]);
+    }, [filteredLeads, sortConfig, normalizedOrderedCompanyNames]);
 
     const requestSort = (key: string) => {
         let direction: 'ascending' | 'descending' = 'ascending';
@@ -380,7 +390,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
     };
 
     const renderOrderBadge = (lead: Lead) => {
-        const isOrdered = orderedCompanyNames?.has(lead.company || '') ?? false;
+        const isOrdered = normalizedOrderedCompanyNames?.has(normalizeCompanyName(lead.company)) ?? false;
         return (
             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${
                 isOrdered
