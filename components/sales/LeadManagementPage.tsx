@@ -263,30 +263,64 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
     const sortedLeads = useMemo(() => {
         let sortableItems = [...filteredLeads];
         if (sortConfig) {
-            sortableItems.sort((a, b) => {
-                let aVal: any = a[sortConfig.key as keyof Lead];
-                let bVal: any = b[sortConfig.key as keyof Lead];
+            const estimateRank = (l: Lead) => {
+                if (l.estimateSentAt) return 2;
+                if (l.aiDraftProposal && String(l.aiDraftProposal).trim()) return 1;
+                return 0;
+            };
 
-                if (sortConfig.key === 'inquiryTypes') {
-                    aVal = a.inquiryTypes ? a.inquiryTypes.join(', ') : (a.inquiryType || '');
-                    bVal = b.inquiryTypes ? b.inquiryTypes.join(', ') : (b.inquiryType || '');
-                }
-                
-                if (sortConfig.key === 'updatedAt') {
-                    aVal = a.updatedAt || a.createdAt;
-                    bVal = b.updatedAt || b.createdAt;
+            sortableItems.sort((a, b) => {
+                let aVal: any;
+                let bVal: any;
+
+                switch (sortConfig.key) {
+                    case 'inquiryTypes':
+                        aVal = a.inquiryTypes ? a.inquiryTypes.join(', ') : (a.inquiryType || '');
+                        bVal = b.inquiryTypes ? b.inquiryTypes.join(', ') : (b.inquiryType || '');
+                        break;
+                    case 'updatedAt':
+                        aVal = a.updatedAt || a.createdAt;
+                        bVal = b.updatedAt || b.createdAt;
+                        break;
+                    case 'handled':
+                        aVal = isHandled(a) ? 1 : 0;
+                        bVal = isHandled(b) ? 1 : 0;
+                        break;
+                    case 'investigation':
+                        aVal = a.aiInvestigation?.summary ? 1 : 0;
+                        bVal = b.aiInvestigation?.summary ? 1 : 0;
+                        break;
+                    case 'estimate':
+                        aVal = estimateRank(a);
+                        bVal = estimateRank(b);
+                        break;
+                    case 'ordered':
+                        aVal = orderedCompanyNames?.has(a.company || '') ? 1 : 0;
+                        bVal = orderedCompanyNames?.has(b.company || '') ? 1 : 0;
+                        break;
+                    case 'customerType':
+                        aVal = a.isExistingCustomer ? 1 : 0;
+                        bVal = b.isExistingCustomer ? 1 : 0;
+                        break;
+                    default:
+                        aVal = a[sortConfig.key as keyof Lead];
+                        bVal = b[sortConfig.key as keyof Lead];
                 }
 
                 if (aVal === null || aVal === undefined) return 1;
                 if (bVal === null || bVal === undefined) return -1;
-                
+
+                if (typeof aVal === 'number' && typeof bVal === 'number') {
+                    return sortConfig.direction === 'ascending' ? aVal - bVal : bVal - aVal;
+                }
+
                 if (String(aVal).toLowerCase() < String(bVal).toLowerCase()) return sortConfig.direction === 'ascending' ? -1 : 1;
                 if (String(aVal).toLowerCase() > String(bVal).toLowerCase()) return sortConfig.direction === 'ascending' ? 1 : -1;
                 return 0;
             });
         }
         return sortableItems;
-    }, [filteredLeads, sortConfig]);
+    }, [filteredLeads, sortConfig, orderedCompanyNames]);
 
     const requestSort = (key: string) => {
         let direction: 'ascending' | 'descending' = 'ascending';
@@ -499,13 +533,13 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                 <tr>
                                     <SortableHeader sortKey="updatedAt" label="最終更新日時" sortConfig={sortConfig} requestSort={requestSort} />
                                     <SortableHeader sortKey="company" label="会社名 / 担当者" sortConfig={sortConfig} requestSort={requestSort} />
-                                    <SortableHeader sortKey="assignedTo" label="対応者" sortConfig={sortConfig} requestSort={requestSort} />
-                                    <th scope="col" className="px-3 py-2 font-medium text-left">対応フラグ</th>
-                                    <th scope="col" className="px-3 py-2 font-medium text-center whitespace-nowrap">企業調査</th>
-                                    <th scope="col" className="px-3 py-2 font-medium text-center whitespace-nowrap">見積</th>
-                                    <th scope="col" className="px-3 py-2 font-medium text-center whitespace-nowrap">受注</th>
-                                    <th scope="col" className="px-3 py-2 font-medium text-center whitespace-nowrap">顧客種別</th>
-                                    <SortableHeader sortKey="status" label="ステータス" sortConfig={sortConfig} requestSort={requestSort} />
+                                    <SortableHeader sortKey="assignedTo" label="対応者" sortConfig={sortConfig} requestSort={requestSort} className="whitespace-nowrap" />
+                                    <SortableHeader sortKey="handled" label="対応フラグ" sortConfig={sortConfig} requestSort={requestSort} className="whitespace-nowrap" />
+                                    <SortableHeader sortKey="investigation" label="企業調査" sortConfig={sortConfig} requestSort={requestSort} className="whitespace-nowrap" />
+                                    <SortableHeader sortKey="estimate" label="見積" sortConfig={sortConfig} requestSort={requestSort} className="whitespace-nowrap" />
+                                    <SortableHeader sortKey="ordered" label="受注" sortConfig={sortConfig} requestSort={requestSort} className="whitespace-nowrap" />
+                                    <SortableHeader sortKey="customerType" label="顧客種別" sortConfig={sortConfig} requestSort={requestSort} className="whitespace-nowrap" />
+                                    <SortableHeader sortKey="status" label="ステータス" sortConfig={sortConfig} requestSort={requestSort} className="whitespace-nowrap" />
                                     <SortableHeader sortKey="inquiryTypes" label="問い合わせ種別" sortConfig={sortConfig} requestSort={requestSort} />
                                     <th scope="col" className="px-3 py-2 font-medium text-center whitespace-nowrap">次のアクション</th>
                                     <th scope="col" className="px-3 py-2 font-medium text-center">操作</th>
@@ -673,7 +707,7 @@ const LeadManagementPage: React.FC<LeadManagementPageProps> = ({ leads, searchTe
                                 ))}
                                  {sortedLeads.length === 0 && (
                                     <tr>
-                                        <td colSpan={10}>
+                                        <td colSpan={12}>
                                             <EmptyState 
                                                 icon={Lightbulb}
                                                 title={searchTerm ? '検索結果がありません' : 'リードがありません'}
