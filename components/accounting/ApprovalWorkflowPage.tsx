@@ -5,7 +5,7 @@ import { getApplications, getApplicationCodes, approveApplication, rejectApplica
 import SMTPEmailService from '../../services/smtpEmailService';
 // FIX: Import AllocationDivision type.
 import { ApplicationWithDetails, ApplicationCode, EmployeeUser, Toast, Customer, AccountItem, Job, PurchaseOrder, Department, AllocationDivision, PaymentRecipient, DailyReportPrefill, AccountingStatus } from '../../types';
-import { Loader, AlertTriangle, Mail } from '../Icons';
+import { Loader, AlertTriangle, Mail, FileText } from '../Icons';
 import { summarizeResubmissionLinks } from '../../utils/applicationResubmission';
 import { deriveApplicationAmount } from '../../utils';
 
@@ -40,7 +40,7 @@ interface ApprovalWorkflowPageProps {
     onDailyReportPrefillApplied?: () => void;
 }
 
-const TAB_ORDER = ['approvals', 'drafts', 'submitted', 'completed'] as const;
+const TAB_ORDER = ['approvals', 'unapproved', 'drafts', 'submitted', 'completed'] as const;
 type TabId = typeof TAB_ORDER[number];
 
 const TABS_CONFIG: Record<
@@ -61,6 +61,14 @@ const TABS_CONFIG: Record<
         emptyMessage: '現在、承認待ちの申請はありません。',
         accent: 'from-blue-500 via-blue-500 to-indigo-500',
         shadow: 'shadow-blue-500/30',
+    },
+    unapproved: {
+        label: '未承認一覧',
+        title: '未承認の申請',
+        description: 'まだ承認されていない申請（自分が提出・承認に関与する案件）の一覧です。',
+        emptyMessage: '未承認の申請はありません。',
+        accent: 'from-rose-500 via-pink-500 to-fuchsia-500',
+        shadow: 'shadow-rose-500/30',
     },
     drafts: {
         label: '下書き',
@@ -136,6 +144,96 @@ const ApprovalWorkflowPage: React.FC<ApprovalWorkflowPageProps> = ({
             const amount = deriveApplicationAmount(app.formData);
             return sum + (amount || 0);
         }, 0);
+    };
+
+    const handleDownloadApprovedExpensesCsv = () => {
+        const targets = applications.filter(app => {
+            const code = app.applicationCode?.code || (app as any).application_code?.code;
+            const isApproved = app.status === 'approved';
+            return code === 'EXP' && isApproved;
+        });
+
+        if (targets.length === 0) {
+            addToast('ダウンロード対象の承認済み経費精算がありません。', 'info');
+            return;
+        }
+
+        const headers = [
+            '申請ID',
+            '申請日',
+            '承認日',
+            '申請者',
+            '取引先',
+            'インボイス番号',
+            '請求日',
+            '支払期日',
+            '金額(税込)',
+            '税抜金額',
+            '消費税額',
+            '摘要',
+        ];
+
+        const escape = (v: unknown): string => {
+            const s = v === null || v === undefined ? '' : String(v);
+            if (/[",\r\n]/.test(s)) {
+                return '"' + s.replace(/"/g, '""') + '"';
+            }
+            return s;
+        };
+
+        const formatDate = (iso?: string | null): string => {
+            if (!iso) return '';
+            const d = new Date(iso);
+            if (Number.isNaN(d.getTime())) return '';
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, '0');
+            const day = String(d.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        };
+
+        const rows = targets.map(app => {
+            const fd = app.formData || {};
+            const invoice = (fd.invoice && typeof fd.invoice === 'object') ? fd.invoice : {};
+            const lines = Array.isArray(invoice.lines) ? invoice.lines : [];
+            const descriptions = lines
+                .map((l: any) => (l && typeof l.description === 'string' ? l.description.trim() : ''))
+                .filter((s: string) => s.length > 0)
+                .join(' / ');
+            const total = deriveApplicationAmount(fd) ?? 0;
+            const submittedAt = app.submittedAt || (app as any).submitted_at || null;
+            const approvedAt = app.approvedAt || (app as any).approved_at || null;
+            return [
+                app.id,
+                formatDate(submittedAt),
+                formatDate(approvedAt),
+                app.applicant?.name || '',
+                invoice.supplierName || '',
+                invoice.registrationNumber || '',
+                formatDate(invoice.invoiceDate),
+                formatDate(invoice.dueDate),
+                total,
+                invoice.totalNet ?? '',
+                invoice.taxAmount ?? '',
+                descriptions,
+            ].map(escape).join(',');
+        });
+
+        const csv = [headers.map(escape).join(','), ...rows].join('\r\n');
+        // BOM付きでExcelの文字化けを回避
+        const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        link.href = url;
+        link.download = `承認済み経費精算_${yyyy}${mm}${dd}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        addToast(`${targets.length} 件の承認済み経費精算をCSVに出力しました。`, 'success');
     };
 
     const fetchListData = async () => {
@@ -327,6 +425,10 @@ const ApprovalWorkflowPage: React.FC<ApprovalWorkflowPageProps> = ({
         );
         const myApplications = applications.filter(app => app.applicantId === currentUser?.id);
         const draftQueue = myApplications.filter(app => app.status === 'draft');
+        const unapprovedQueue = applications.filter(app => {
+            const involved = app.applicantId === currentUser?.id || app.approverId === currentUser?.id;
+            return involved && app.status === 'pending_approval';
+        });
         const submittedQueue = applications.filter(app => {
             const involved = app.applicantId === currentUser?.id || app.approverId === currentUser?.id;
             const isNotDraft = app.status !== 'draft';
@@ -341,6 +443,7 @@ const ApprovalWorkflowPage: React.FC<ApprovalWorkflowPageProps> = ({
 
         const datasetMap: Record<TabId, ApplicationWithDetails[]> = {
             approvals: approvalQueue,
+            unapproved: unapprovedQueue,
             drafts: draftQueue,
             submitted: submittedQueue,
             completed: completedQueue,
@@ -348,6 +451,7 @@ const ApprovalWorkflowPage: React.FC<ApprovalWorkflowPageProps> = ({
 
         const counts: Record<TabId, number> = {
             approvals: approvalQueue.length,
+            unapproved: unapprovedQueue.length,
             drafts: draftQueue.length,
             submitted: submittedQueue.length,
             completed: completedQueue.length,
@@ -355,6 +459,7 @@ const ApprovalWorkflowPage: React.FC<ApprovalWorkflowPageProps> = ({
 
         const totals: Record<TabId, number> = {
             approvals: sumApplicationAmounts(approvalQueue),
+            unapproved: sumApplicationAmounts(unapprovedQueue),
             drafts: sumApplicationAmounts(draftQueue),
             submitted: sumApplicationAmounts(submittedQueue),
             completed: sumApplicationAmounts(completedQueue),
@@ -483,7 +588,7 @@ const ApprovalWorkflowPage: React.FC<ApprovalWorkflowPageProps> = ({
 
         return (
             <div className="flex flex-col gap-6">
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                     {TAB_ORDER.map(tabId => (
                         <React.Fragment key={tabId}>
                             <TabCard id={tabId} />
@@ -492,10 +597,24 @@ const ApprovalWorkflowPage: React.FC<ApprovalWorkflowPageProps> = ({
                 </div>
 
                 <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-                    <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                        <span>{TABS_CONFIG[activeTab].title}</span>
-                    </h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{TABS_CONFIG[activeTab].description}</p>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                <span>{TABS_CONFIG[activeTab].title}</span>
+                            </h3>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{TABS_CONFIG[activeTab].description}</p>
+                        </div>
+                        {activeTab === 'completed' && (
+                            <button
+                                onClick={handleDownloadApprovedExpensesCsv}
+                                className="flex items-center gap-2 px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors text-sm font-semibold"
+                                title="承認済みの経費精算データをCSV形式でダウンロードします"
+                            >
+                                <FileText className="w-4 h-4" />
+                                <span>経費精算CSV出力</span>
+                            </button>
+                        )}
+                    </div>
                     <div className="mt-3 flex flex-wrap items-baseline gap-4 text-[130%]">
                         <span className="font-semibold text-slate-800 dark:text-slate-100">件数: {tabCounts[activeTab]} 件</span>
                         <span className="font-semibold text-slate-800 dark:text-slate-100">合計金額: ¥{tabTotals[activeTab].toLocaleString()}</span>
