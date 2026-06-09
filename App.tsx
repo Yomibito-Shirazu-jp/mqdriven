@@ -169,6 +169,7 @@ import InventoryManagementPage from './components/inventory/InventoryManagementP
 import CreateInventoryItemModal from './components/inventory/CreateInventoryItemModal';
 import ManufacturingPipelinePage from './components/manufacturing/ManufacturingPipelinePage';
 import ManufacturingOrdersPage from './components/manufacturing/ManufacturingOrdersPage';
+import LegacyOrderInvoicePage from './components/sales/LegacyOrderInvoicePage';
 import PurchasingManagementPage from './components/purchasing/PurchasingManagementPage';
 import CreatePurchaseOrderModal from './components/purchasing/CreatePurchaseOrderModal';
 import EstimateManagementPage from './components/sales/EstimateManagementPage';
@@ -391,6 +392,7 @@ const PAGE_TITLES: Record<Page, string> = {
     detailed_estimate: '戦略見積作成',
     new_ai_estimate: '生成AI見積',
     turnaround_plan: '起死回生プラン',
+    legacy_order_invoice: 'レガシー請求書発行',
 };
 const APPLICATION_FORM_PAGE_MAP: Partial<Record<string, Page>> = {
     EXP: 'approval_form_expense',
@@ -1750,6 +1752,8 @@ const App: React.FC = () => {
                         onNavigate={handleNavigate}
                     />
                 );
+            case 'legacy_order_invoice':
+                return <LegacyOrderInvoicePage />;
             case 'admin_audit_log':
                 return <AuditLogPage />;
             case 'admin_journal_queue':

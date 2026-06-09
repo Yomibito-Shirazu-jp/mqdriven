@@ -8,17 +8,17 @@
   --mq-font-family:
     "Inter", "Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
-  --mq-font-size: 13px; /* Slightly smaller base font for clean look */
-  --mq-line-height: 1.6;
+  --mq-font-size: 14px;
+  --mq-line-height: 1.65;
   --mq-page-width: 1480px;
-  --mq-card-radius: 8px; /* Less rounded corners, more sleek */
-  --mq-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); /* Very subtle flat shadow */
-  --mq-border: #f1f5f9; /* Very light border */
-  --mq-bg: #f8fafc; /* Minimal bright background */
+  --mq-card-radius: 8px;
+  --mq-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --mq-border: #e2e8f0;
+  --mq-bg: #f8fafc;
   --mq-card-bg: #ffffff;
-  --mq-text: #1f2937; /* Darker slate for contrast */
-  --mq-muted: #6b7280;
-  --mq-table-head: #ffffff;
+  --mq-text: #1e293b;
+  --mq-muted: #4b5563;
+  --mq-table-head: #f1f5f9;
   --mq-table-hover: #fcfcfd;
   --mq-input-bg: #ffffff;
   --mq-input-border: #d1d5db;

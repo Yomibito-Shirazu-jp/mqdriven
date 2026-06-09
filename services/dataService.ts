@@ -1223,7 +1223,7 @@ export const getJobs = async (): Promise<Job[]> => {
         { data: projectRows, error: projectError },
         { data: customerRows, error: customerError },
     ] = await Promise.all([
-        supabase.from('projects').select('*').order('updated_at', { ascending: false }),
+        supabase.from('projects_legacy').select('*').order('updated_at', { ascending: false }),
         supabase.from('customers').select('id, customer_code, customer_name'),
     ]);
 

@@ -945,7 +945,7 @@ const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
                                         rows={2}
                                         value={rejectionReason}
                                         onChange={(e) => setRejectionReason(e.target.value)}
-                                        placeholder="承認コメント、または差し戻し理由を入力"
+                                        placeholder="承認コメント、または差し戻し理由を入力（差し戻しの場合は理由必須）"
                                         className="mt-1 block w-full rounded-xl border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                                         disabled={isProcessing}
                                     />
@@ -954,7 +954,7 @@ const ApplicationDetailModal: React.FC<ApplicationDetailModalProps> = ({
                                     <button
                                         type="button"
                                         onClick={handleReject}
-                                        disabled={isProcessing || !rejectionReason.trim()}
+                                        disabled={isProcessing}
                                         className="flex items-center gap-2 rounded-xl bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:bg-slate-400 w-full sm:w-auto justify-center"
                                     >
                                         {isProcessing ? <Loader className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}

@@ -314,7 +314,7 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
 
               return (
                 <React.Fragment key={category.id}>
-                  <li className={`mt-6 px-3 text-[11px] font-bold text-slate-400 tracking-wider mb-1 ${shouldShowDesktop ? '' : 'sr-only'} ${!shouldShowMobile ? 'hidden sm:block' : ''}`}>
+                  <li className={`mt-6 px-3 text-[12px] font-bold text-slate-500 tracking-wider mb-1 ${shouldShowDesktop ? '' : 'sr-only'} ${!shouldShowMobile ? 'hidden sm:block' : ''}`}>
                     {!isCollapsed && (
                       <button
                         type="button"
@@ -354,7 +354,7 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
                             }
                           }}
                           className={`flex items-center p-2.5 sm:px-3 sm:py-2.5 rounded-md transition-colors duration-200 ${isActive ? 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 font-bold border-l-4 border-teal-700 dark:border-teal-500' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
-                            } ${isCollapsed ? 'justify-center border-l-0' : 'gap-3'} text-[13px] min-h-[40px] mb-0.5 -ml-2 pl-4 rounded-none border-t border-b border-transparent`}
+                            } ${isCollapsed ? 'justify-center border-l-0' : 'gap-3'} text-[14px] min-h-[42px] mb-0.5 -ml-2 pl-4 rounded-none border-t border-b border-transparent`}
                         >
                           {ItemIcon && <ItemIcon className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? 'text-teal-700 dark:text-teal-400' : 'text-slate-400 dark:text-slate-500'}`} />}
                           <span className={`${shouldShowMobile ? 'block' : 'hidden sm:block'} ${isCollapsed ? 'sm:hidden' : ''}`}>{item.name}</span>
@@ -422,15 +422,15 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
         <div className="mt-auto pt-4 border-t border-slate-200 dark:border-slate-800 space-y-4">
           {supabaseUserEmail && (
             <div className="px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-1">ログイン中のユーザー</p>
-              <p className="text-[13px] font-semibold text-slate-700 dark:text-slate-300 break-all">{supabaseUserEmail}</p>
+              <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-1">ログイン中のユーザー</p>
+              <p className="text-[14px] font-semibold text-slate-700 dark:text-slate-300 break-all">{supabaseUserEmail}</p>
             </div>
           )}
           {onSignOut && (
             <button
               type="button"
               onClick={onSignOut}
-              className="w-full px-3 py-2 text-[13px] font-semibold text-center text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200 rounded-md transition-colors"
+              className="w-full px-3 py-2 text-[14px] font-semibold text-center text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200 rounded-md transition-colors"
             >
               ログアウト
             </button>
