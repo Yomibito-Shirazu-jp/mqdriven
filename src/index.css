@@ -10,7 +10,6 @@
     "Segoe UI", sans-serif;
   --mq-font-size: 14px;
   --mq-line-height: 1.65;
-  --mq-page-width: 1480px;
   --mq-card-radius: 8px;
   --mq-card-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   --mq-border: #e2e8f0;
@@ -161,12 +160,7 @@ html.dark {
 
 /* MQ base page styles */
 .mq-page {
-  width: min(100%, var(--mq-page-width));
-  margin: 0 auto;
-  border-radius: var(--mq-card-radius);
-  background: var(--mq-card-bg);
-  border: 1px solid var(--mq-border);
-  box-shadow: var(--mq-card-shadow);
+  width: 100%;
 }
 
 .mq-page h1,

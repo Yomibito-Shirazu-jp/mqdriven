@@ -102,8 +102,8 @@ const Header: React.FC<HeaderProps> = ({ title, primaryAction, secondaryActions,
   };
 
   return (
-    <header className="flex items-center justify-between px-6 py-4 min-h-[64px]">
-      <h1 className="text-xl font-bold text-slate-800 dark:text-white capitalize tracking-tight">{title}</h1>
+    <header className="flex items-center justify-between px-6 py-3 min-h-[52px] border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex-shrink-0">
+      <h1 className="text-lg font-bold text-slate-800 dark:text-white tracking-tight">{title}</h1>
       <div className="flex items-center gap-4">
         <div className="hidden sm:block text-xs text-slate-500 dark:text-slate-400">
           {timeString}
