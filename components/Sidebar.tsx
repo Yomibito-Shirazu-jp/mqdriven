@@ -221,7 +221,7 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
   );
 
   // Mobile: full width when open, Desktop: toggleable
-  const sidebarWidth = isCollapsed ? 'w-14' : 'w-full sm:w-64';
+  const sidebarWidth = isCollapsed ? 'w-14' : 'w-full sm:w-72';
   const sidebarTransition = 'transition-all duration-300 ease-in-out';
 
   // Mobile visibility logic
@@ -357,7 +357,7 @@ const Sidebar: React.FC<SidebarWithCountsProps> = ({
                             } ${isCollapsed ? 'justify-center border-l-0' : 'gap-3'} text-[14px] min-h-[42px] mb-0.5 -ml-2 pl-4 rounded-none border-t border-b border-transparent`}
                         >
                           {ItemIcon && <ItemIcon className={`w-[18px] h-[18px] flex-shrink-0 ${isActive ? 'text-teal-700 dark:text-teal-400' : 'text-slate-400 dark:text-slate-500'}`} />}
-                          <span className={`${shouldShowMobile ? 'block' : 'hidden sm:block'} ${isCollapsed ? 'sm:hidden' : ''}`}>{item.name}</span>
+                          <span className={`${shouldShowMobile ? 'block' : 'hidden sm:block'} ${isCollapsed ? 'sm:hidden' : ''} truncate leading-snug`}>{item.name}</span>
                           {item.children && !isCollapsed && (
                             <button
                               type="button"
