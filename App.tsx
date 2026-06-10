@@ -1837,10 +1837,8 @@ const App: React.FC = () => {
     }
 
     const headerConfig = {
-        title: PAGE_TITLES[currentPage],
-        primaryAction: PRIMARY_ACTION_ENABLED_PAGES.includes(currentPage)
-            ? { label: `新規${PAGE_TITLES[currentPage].replace('管理', '')}作成`, onClick: onPrimaryAction, icon: PlusCircle, disabled: !!dbError, tooltip: dbError ? 'データベース接続エラーのため利用できません。' : undefined }
-            : undefined,
+        title: '',
+        primaryAction: undefined,
         secondaryActions: undefined,
         darkMode: {
             isDark: isDarkMode,
